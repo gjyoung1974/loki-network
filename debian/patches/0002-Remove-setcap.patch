@@ -21,4 +21,4 @@ index a51f123..5ead30f 100644
 -  endif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
    if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
      target_link_directories(${EXE} PRIVATE /usr/local/lib)
-   endif()
+     target_link_directories(lokinet-rcutil PRIVATE /usr/local/lib)

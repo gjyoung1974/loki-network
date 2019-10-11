@@ -1,3 +1,340 @@
+lokinet (0.5.2-1~ubuntu1604) xenial; urgency=medium
+
+  * 0.5.2 release
+
+  [ Thomas Winget ]
+  * make travis happy again *and* don't break message sending
+  * Adds Link-Relay Status Messages
+  * make TransitHop self-destruct if path is invalidated
+
+  [ Jason Rhinelander ]
+  * Reduce debhelper version for xenial
+  * Reduce required cmake version to 3.5.1
+  * Replace net/if.h with linux/if.h for xenial
+
+  [ Jeff Becker ]
+  * fix crash of clients and propagate lookup failures
+  * run main in it's own thread and set its process name.
+  * try deferred resolve for exit handler
+  * add link layer delivery feedback
+
+  [ Jason Rhinelander ]
+  * lokinet-bootstrap improvements
+  * Deb updates & fixes
+
+  [ Jeff Becker ]
+  * make travis happy
+  * propagate all utp link errors
+  * make it compile
+  * * increase utp buffers * disallow inbound traffic on outbound utp link * const correctness
+  * use size_t
+  * fix compile for tests
+  * on logic queue overflow put job on timer instead
+  * correct cmake paramter for shellhooks
+  * * const correctness * use std::map's upper_bound to find many closer entries * randomize key for exploration to allow many explore jobs in paralell
+  * fix crashes in testnet
+  * const correctness
+  * const correctness
+
+  [ Michael ]
+  * Initial experiment with a docker-based CI
+  * try to make some windows
+  * Abandon debian
+  * Fixup
+  * Use __cpp_lib_filesystem
+  * or not
+
+  [ Jeff Becker ]
+  * revert dht stuff
+  * fix dht exploration ;~;
+  * remove -1
+  * use std::min
+  * use ipv4 address on snodes for now
+
+  [ Michael ]
+  * Add ASAN CI
+  * Use travis_wait because builds/linkers are slow
+
+  [ michael-loki ]
+  * Try bumping to 30 minutes wait
+
+  [ Jeff Becker ]
+  * have IPPacket::srcv6 and IPPacket::dstv6 check for ipv4 packets and expand them to ipv6
+  * call path build fail stuff in logic thread
+
+  [ michael-loki ]
+  * Go back to 20 minutes, don't let this job block CI
+  * ugh travis
+
+  [ Jeff Becker ]
+  * properly close dropped inbound sessions on utp
+  * remove limit
+  * mark addresses as active when we use them
+  * remove session->Close()
+  * close dropped session later in event loop
+  * always rewrite address
+
+  [ Rick V ]
+  * add debug helper lib for core dump generation on all supported windows targets
+  * ok use exception filter
+  * back out for now
+  * enable SetThreadName (#689)
+  * fix single-arch install config
+  * fix header case
+  * add make windows config command line
+  * fix sun
+  * really fix #689 this time
+  * fix netbsd
+  * this is new, intro'd with the libuv refactor
+  * clang-format
+  * namespace
+  * why isn't cmake picking this up
+  * this is getting hairy
+  * fix thread naming on windows
+  * get our TAP ifindex to pass to ipv6(1) on old platforms
+  * fix a crash on some win32 systems
+
+  [ Michael ]
+  * Add fail-able docker build for gcc trunk
+  * Fix gcc trunk warnings
+  * fixup! Fix gcc trunk warnings
+
+  [ Jeff Becker ]
+  * dont close socket on bad state
+
+  [ Michael ]
+  * Jeff's fixes
+  * Set fast_finish so we don't need to wait for the sloooow 'make windows' target
+  * WIP on docker-compose workflow
+
+  [ Jeff Becker ]
+  * don't time out clients based on downstream traffic
+  * always regen expired rc
+  * drop missmatched convotags
+
+  [ Michael ]
+  * Fix a deadlock when link fails to establish
+
+  [ Jeff Becker ]
+  * initial mempipe implementation
+
+  [ Jeff ]
+  * don't expire based on reply intro
+
+  [ Michael ]
+  * Fix suspicious thread-unsafety
+  * Make format
+
+  [ Jeff Becker ]
+  * also check if we are a public router when checking for timeout in read direction
+  * make it compile
+  * move convotag missmatch check to the right place
+  * make format
+  * more consise utp timeout logic
+  * make it compile
+  * lokinet monitor
+  * when pushing large amounts per tick try not to bottleneck on utp_writev
+  * pumpwrite -> pump
+  * make sure stats are called every 1s
+  * try adding proper limits
+  * add limits files
+  * include header
+  * redo commit
+
+  [ Michael ]
+  * CI to catch missing `make format`
+  * Test make windows on macOS, and avoid timeouts
+
+  [ Jeff Becker ]
+  * limit connections in outbound session maker
+  * more
+  * pump to make stuff speed up if stuck
+  * ensure timestamp is not in future
+
+  [ Michael ]
+  * clang-tidy modernize pass
+  * Fix format verify
+  * Bump version of cxxopts
+  * Update rcutil and add to build
+  * Include json output
+  * make format
+  * Add missing header
+  * Dump config
+  * make windows fixes
+  * try with clang-format 7
+
+  [ Jeff Becker ]
+  * use llarp::path::default_len to inform how many routers we need
+  * correct header?
+
+  [ Michael ]
+  * Use the right version of clang-tidy
+  * docker-compose fixes
+  * Fix make install
+  * Give explicit names to builds so we know wtf failed
+  * Fix static linking on macOS
+  * Find libatomic fix cmake magics
+  * Fix on compilers which aren't C++11 by default
+  * Replace StatusObject with underlying JSON type
+  * Use ToString instead
+  * Use ToString over ToHex
+  * Dump more info from router contact
+  * replace endl with '\n in config.cpp
+
+  [ Jeff Becker ]
+  * more
+  * initial iwp
+  * default to iwp
+  * update iwp , add NACK
+  * mark alive on nack
+  * don't crash
+  * send keep alive on pump when needed
+  * disable log spew
+  * lower log level for renegotiate
+  * use std::make_tuple
+  * silence clang errors
+  * silence clang errors again
+  * default to no implementation on pipe for pleasing win32
+  * ignore test on win32
+
+  [ Rick V ]
+  * reeeee
+  * header got stripped
+  * fix log colours on old win32 platforms
+  * add new and improved 32-bit lokinet-rcutil to install pkg
+  * override print
+  * ok use clang-format v8
+
+  [ Jeff Becker ]
+  * code review fixes:
+  * more fixups
+
+  [ Michael ]
+  * Partial fixes for shadow
+  * Fix docker-compose isolated network
+
+  [ Rick V ]
+  * sun fix
+
+  [ despair ]
+  * fix cmake (restore crypto opts)
+
+  [ Rick V ]
+  * add native build option
+
+  [ Jeff Becker ]
+  * add likn layer delivery timeout notification for iwp
+  * add forgotten bits
+  * use correct constructor for llarp_buffer_t
+  * fix log level
+  * bump path build handover window, check cooldown on build.
+  * use estimated build time instead of expiration time for delta when determining when to space out builds
+  * add short data fragments and rx replay filter
+  * please the CI gods, wololo
+  * correct constructors on llarp_buffer_t and check rc on regen
+  * quick little fixes
+  * fix explore
+  * get rid of dead code
+  * fix sign
+  * prepare for 0.5.0
+  * make it compile
+  * make format
+  * optimize
+
+  [ Jason Rhinelander ]
+  * Make sure /etc/loki exists during postinst
+
+  [ Jeff ]
+  * try fixing handover drop bug
+  * make osx unit tests compile on old gcc
+
+  [ Rick V ]
+  * add build option for constrained node ops and make sure everything is now target-optimised in all configurations (allows debugging on the target using the debug build config)
+  * new cmake module
+  * bump version for release
+  * if cppbackport is built, make that consistent too
+  * add description to lokinet svc manifest
+  * undo utf8 conversion
+  * set point-to-point mode on TAP
+  * iconv 🅱roke
+  * move non-string version info to common header
+  * derp
+  * make format crypto/
+  * clang-format remaining code, use __asm__ for avx2 port since we insist on straight C99 without extensions (asm isn't special in C99, __asm__ is)
+  * this kills the TAP
+  * add config edit button, and see if this fixes the pipe read bug
+  * add config file options
+
+  [ Jeff Becker ]
+  * disable link layer locking because there was no contention
+
+  [ Michael ]
+  * Move logging to subdirectory
+  * Move meta programming to subdirectory
+  * Move metrics to subdirectory
+  * Move thread stuff to subdirectory
+  * Fix windows
+
+  [ Rick V ]
+  * oops
+
+  [ Jeff ]
+  * Update motto.txt
+  * Update lokinet-bootstrap
+
+  [ Jeff Becker ]
+  * change default url for bootstrap
+  * update default netid
+
+  [ Jason Rhinelander ]
+  * Patch lokinet-bootstrap to use system bootstrap path when run as root
+
+  [ Michael ]
+  * Abort when a null mutex is locked from a different thread (in debug mode only)
+
+  [ Rick V ]
+  * auto config has been removed for months now
+  * some people set the netid explicitly, and set it to default anyway
+  * 0.6 relate and other general updates to MacOS packaging
+  * fix
+  * Update distribution.xml
+
+  [ Jeff Becker ]
+  * disable rc expiration
+  * reduce logging and make format
+  * try more ranges
+
+  [ Jason Rhinelander ]
+  * Move default user/group define into a debian patch
+  * Fix x86-isms in debs
+
+  [ Jeff Becker ]
+  * prune dht peers every router tick
+
+  [ Jason Rhinelander ]
+  * Add lokinet DNS for systemd-resolved and resolvconf
+  * Add no-resolvconf hack for deb install to deb config file
+  * Bump version to 0.5.1 for minor fixes for 0.5.0
+
+  [ Ryan Tharp ]
+  * Add libuv
+
+  [ Michael ]
+  * Statically link releases
+
+  [ jeff ]
+  * remove libutp and all such code related to utp
+
+  [ Jeff Becker ]
+  * try fixing handover
+
+  [ jeff ]
+  * handover should be fixed now
+  * final touches
+  * bump version and motto
+
+ -- Jason Rhinelander <jason@imaginary.ca>  Fri, 11 Oct 2019 16:06:16 -0300
+
 lokinet (0.5.0~pre20190725-1~ubuntu1604) xenial; urgency=medium
 
   [ Jeff Becker (probably not evil) ]
