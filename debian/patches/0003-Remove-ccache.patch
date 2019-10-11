@@ -10,7 +10,7 @@ log.
  1 file changed, 5 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 5ead30f..daf3409 100644
+index 58b78a7..7cfb71e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,11 +1,6 @@

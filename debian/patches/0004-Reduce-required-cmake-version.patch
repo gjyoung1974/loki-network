@@ -10,7 +10,7 @@ needed for android.
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index daf3409..d67d7d3 100644
+index 7cfb71e..e725818 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,5 +1,5 @@

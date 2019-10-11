@@ -9,10 +9,10 @@ doesn't work with debian's temporary install location).
  1 file changed, 3 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a51f123..5ead30f 100644
+index 84ab1dd..58b78a7 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -298,9 +298,6 @@ else()
+@@ -301,9 +301,6 @@ else()
      install(PROGRAMS ${CMAKE_SOURCE_DIR}/lokinet-bootstrap DESTINATION bin)
    endif()
  

@@ -8,7 +8,7 @@ xenial has issues if both linux/if.h and net/if.h get included.
  1 file changed, 4 insertions(+)
 
 diff --git a/llarp/net/net.cpp b/llarp/net/net.cpp
-index 010797d..b0a3ac3 100644
+index c04de2a..8eec070 100644
 --- a/llarp/net/net.cpp
 +++ b/llarp/net/net.cpp
 @@ -9,8 +9,12 @@

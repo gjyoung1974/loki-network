@@ -8,10 +8,10 @@ Rather than cramming it into CXXFLAGS in debian/rules.
  1 file changed, 3 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 49ebccb..728b806 100644
+index e725818..b38eba3 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -45,6 +45,9 @@ set(ABYSS_EXE ${ABYSS_LIB}-main)
+@@ -50,6 +50,9 @@ set(ABYSS_EXE ${ABYSS_LIB}-main)
  get_filename_component(TT_ROOT "vendor/libtuntap-master" ABSOLUTE)
  add_definitions(-D${CMAKE_SYSTEM_NAME})
  
