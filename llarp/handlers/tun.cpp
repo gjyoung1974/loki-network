@@ -12,8 +12,8 @@
 #include <ev/ev.hpp>
 #include <router/abstractrouter.hpp>
 #include <service/context.hpp>
-#include <util/logic.hpp>
-#include <util/memfn.hpp>
+#include <util/meta/memfn.hpp>
+#include <util/thread/logic.hpp>
 #include <nodedb.hpp>
 
 #include <util/str.hpp>
@@ -31,7 +31,7 @@ namespace llarp
     static void
     tunifTick(llarp_tun_io *tun)
     {
-      TunEndpoint *self = static_cast< TunEndpoint * >(tun->user);
+      auto *self = static_cast< TunEndpoint * >(tun->user);
       self->Flush();
     }
 
@@ -66,14 +66,14 @@ namespace llarp
     util::StatusObject
     TunEndpoint::ExtractStatus() const
     {
-      auto obj = service::Endpoint::ExtractStatus();
-      obj.Put("ifaddr", m_OurRange.ToString());
+      auto obj      = service::Endpoint::ExtractStatus();
+      obj["ifaddr"] = m_OurRange.ToString();
 
       std::vector< std::string > resolvers;
       for(const auto &addr : m_UpstreamResolvers)
         resolvers.emplace_back(addr.ToString());
-      obj.Put("ustreamResolvers", resolvers);
-      obj.Put("localResolver", m_LocalResolverAddr.ToString());
+      obj["ustreamResolvers"] = resolvers;
+      obj["localResolver"]    = m_LocalResolverAddr.ToString();
       util::StatusObject ips{};
       for(const auto &item : m_IPActivity)
       {
@@ -84,14 +84,14 @@ namespace llarp
           remoteStr = RouterID(addr.as_array()).ToString();
         else
           remoteStr = service::Address(addr.as_array()).ToString();
-        ipObj.Put("remote", remoteStr);
+        ipObj["remote"]    = remoteStr;
         std::string ipaddr = item.first.ToString();
-        ips.Put(ipaddr.c_str(), ipObj);
+        ips[ipaddr]        = ipObj;
       }
-      obj.Put("addrs", ips);
-      obj.Put("ourIP", m_OurIP.ToString());
-      obj.Put("nextIP", m_NextIP.ToString());
-      obj.Put("maxIP", m_MaxIP.ToString());
+      obj["addrs"]  = ips;
+      obj["ourIP"]  = m_OurIP.ToString();
+      obj["nextIP"] = m_NextIP.ToString();
+      obj["maxIP"]  = m_MaxIP.ToString();
       return obj;
     }
 
@@ -125,7 +125,7 @@ namespace llarp
         }
 
         RouterContact rc;
-        if(!router->nodedb()->Get(connect, rc))
+        if(!m_router->nodedb()->Get(connect, rc))
         {
           LogError(Name(), " we don't have the RC for ", v,
                    " so we can't use it in strict-connect");
@@ -152,8 +152,8 @@ namespace llarp
         }
         m_Exit = std::make_shared< llarp::exit::ExitSession >(
             exitRouter,
-            util::memFn(&TunEndpoint::QueueInboundPacketForExit, this), router,
-            numPaths, numHops, ShouldBundleRC());
+            util::memFn(&TunEndpoint::QueueInboundPacketForExit, this),
+            m_router, numPaths, numHops, ShouldBundleRC());
         llarp::LogInfo(Name(), " using exit at ", exitRouter);
       }
       if(k == "local-dns")
@@ -412,7 +412,7 @@ namespace llarp
           }
           else
           {
-            dns::Message *replyMsg = new dns::Message(std::move(msg));
+            auto *replyMsg = new dns::Message(std::move(msg));
             using service::Address;
             using service::OutboundContext;
             return EnsurePathToService(
@@ -432,7 +432,7 @@ namespace llarp
           }
           else
           {
-            dns::Message *replyMsg = new dns::Message(std::move(msg));
+            auto *replyMsg = new dns::Message(std::move(msg));
             EnsurePathToSNode(addr.as_array(),
                               [=](const RouterID &, exit::BaseSession_ptr s) {
                                 SendDNSReply(addr, s, replyMsg, reply, true,
@@ -577,7 +577,7 @@ namespace llarp
         return false;
       }
 
-      struct addrinfo hint, *res = NULL;
+      struct addrinfo hint, *res = nullptr;
       int ret;
 
       memset(&hint, 0, sizeof hint);
@@ -585,7 +585,7 @@ namespace llarp
       hint.ai_family = PF_UNSPEC;
       hint.ai_flags  = AI_NUMERICHOST;
 
-      ret = getaddrinfo(tunif.ifaddr, NULL, &hint, &res);
+      ret = getaddrinfo(tunif.ifaddr, nullptr, &hint, &res);
       if(ret)
       {
         llarp::LogError(Name(),
@@ -733,11 +733,6 @@ namespace llarp
             m_Exit->QueueUpstreamTraffic(std::move(pkt),
                                          llarp::routing::ExitPadSize);
           }
-          else
-          {
-            llarp::LogWarn(Name(), " has no endpoint for ", dst);
-            llarp::DumpBuffer(pkt.ConstBuffer());
-          }
           return;
         }
         if(m_SNodes.at(itr->second))
@@ -759,7 +754,10 @@ namespace llarp
           pkt.UpdateIPv6Address({0}, {0});
 
         if(sendFunc && sendFunc(pkt.Buffer()))
+        {
+          MarkIPActive(dst);
           return;
+        }
         llarp::LogWarn(Name(), " did not flush packets");
       });
     }
@@ -799,8 +797,6 @@ namespace llarp
             }
             else if(pkt.IsV6())
             {
-              if(pkt.srcv6() != huint128_t{0} || pkt.dstv6() != huint128_t{0})
-                return false;
               pkt.UpdateIPv6Address(themIP, usIP);
             }
             return true;
@@ -908,7 +904,7 @@ namespace llarp
     TunEndpoint::tunifBeforeWrite(llarp_tun_io *tun)
     {
       // called in the isolated network thread
-      TunEndpoint *self = static_cast< TunEndpoint * >(tun->user);
+      auto *self = static_cast< TunEndpoint * >(tun->user);
       // flush user to network
       self->FlushSend();
       // flush exit traffic queues if it's there
@@ -927,15 +923,13 @@ namespace llarp
     TunEndpoint::tunifRecvPkt(llarp_tun_io *tun, const llarp_buffer_t &b)
     {
       // called for every packet read from user in isolated network thread
-      TunEndpoint *self = static_cast< TunEndpoint * >(tun->user);
+      auto *self = static_cast< TunEndpoint * >(tun->user);
       const ManagedBuffer buf(b);
       self->m_UserToNetworkPktQueue.EmplaceIf(
           [&buf](net::IPPacket &pkt) -> bool { return pkt.Load(buf); });
     }
 
-    TunEndpoint::~TunEndpoint()
-    {
-    }
+    TunEndpoint::~TunEndpoint() = default;
 
   }  // namespace handlers
 }  // namespace llarp

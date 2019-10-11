@@ -14,7 +14,7 @@ namespace llarp
     struct ExitEndpoint : public dns::IQueryHandler
     {
       ExitEndpoint(const std::string& name, AbstractRouter* r);
-      ~ExitEndpoint();
+      ~ExitEndpoint() override;
 
       void
       Tick(llarp_time_t now);
@@ -119,6 +119,11 @@ namespace llarp
       /// not existing already
       huint128_t
       ObtainServiceNodeIP(const RouterID& router);
+
+      /// async obtain snode session and call callback when it's ready to send
+      void
+      ObtainSNodeSession(const RouterID& router,
+                         exit::SessionReadyFunc obtainCb);
 
       bool
       QueueSNodePacket(const llarp_buffer_t& buf, huint128_t from);

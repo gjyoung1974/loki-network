@@ -2,22 +2,20 @@
 
 #include <crypto/crypto.hpp>
 #include <crypto/types.hpp>
-#include <util/logic.hpp>
-#include <util/memfn.hpp>
+#include <util/meta/memfn.hpp>
+#include <util/thread/logic.hpp>
+#include <utility>
 
 namespace llarp
 {
   namespace service
   {
-    AsyncKeyExchange::AsyncKeyExchange(std::shared_ptr< Logic > l,
-                                       const ServiceInfo& r,
-                                       const Identity& localident,
-                                       const PQPubKey& introsetPubKey,
-                                       const Introduction& remote,
-                                       IDataHandler* h, const ConvoTag& t,
-                                       ProtocolType proto)
-        : logic(l)
-        , remote(r)
+    AsyncKeyExchange::AsyncKeyExchange(
+        std::shared_ptr< Logic > l, ServiceInfo r, const Identity& localident,
+        const PQPubKey& introsetPubKey, const Introduction& remote,
+        IDataHandler* h, const ConvoTag& t, ProtocolType proto)
+        : logic(std::move(l))
+        , m_remote(std::move(r))
         , m_LocalIdentity(localident)
         , introPubKey(introsetPubKey)
         , remoteIntro(remote)
@@ -30,9 +28,9 @@ namespace llarp
     void
     AsyncKeyExchange::Result(void* user)
     {
-      AsyncKeyExchange* self = static_cast< AsyncKeyExchange* >(user);
+      auto* self = static_cast< AsyncKeyExchange* >(user);
       // put values
-      self->handler->PutSenderFor(self->msg.tag, self->remote, false);
+      self->handler->PutSenderFor(self->msg.tag, self->m_remote, false);
       self->handler->PutCachedSessionKeyFor(self->msg.tag, self->sharedKey);
       self->handler->PutIntroFor(self->msg.tag, self->remoteIntro);
       self->handler->PutReplyIntroFor(self->msg.tag, self->msg.introReply);
@@ -43,7 +41,7 @@ namespace llarp
     void
     AsyncKeyExchange::Encrypt(void* user)
     {
-      AsyncKeyExchange* self = static_cast< AsyncKeyExchange* >(user);
+      auto* self = static_cast< AsyncKeyExchange* >(user);
       // derive ntru session key component
       SharedSecret K;
       auto crypto = CryptoManager::instance();
@@ -55,7 +53,7 @@ namespace llarp
       SharedSecret sharedSecret;
       path_dh_func dh_client = util::memFn(&Crypto::dh_client, crypto);
       if(!self->m_LocalIdentity.KeyExchange(dh_client, sharedSecret,
-                                            self->remote, self->frame.N))
+                                            self->m_remote, self->frame.N))
       {
         LogError("failed to derive x25519 shared key component");
       }

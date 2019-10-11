@@ -4,7 +4,7 @@
 #include <router/i_outbound_session_maker.hpp>
 #include <link/i_link_manager.hpp>
 #include <constants/link_layer.hpp>
-#include <util/memfn.hpp>
+#include <util/meta/memfn.hpp>
 #include <util/status.hpp>
 
 #include <algorithm>
@@ -25,7 +25,9 @@ namespace llarp
       return false;
     }
 
-    Message message{buf.sz, callback};
+    Message message;
+    message.first.resize(buf.sz);
+    message.second = callback;
 
     std::copy_n(buf.base, buf.sz, message.first.data());
 
@@ -166,14 +168,15 @@ namespace llarp
   bool
   OutboundMessageHandler::Send(const RouterID &remote, const Message &msg)
   {
-    llarp_buffer_t buf(msg.first);
-    if(_linkManager->SendTo(remote, buf))
-    {
-      DoCallback(msg.second, SendStatus::Success);
-      return true;
-    }
-    DoCallback(msg.second, SendStatus::Congestion);
-    return false;
+    const llarp_buffer_t buf(msg.first);
+    auto callback = msg.second;
+    return _linkManager->SendTo(
+        remote, buf, [=](ILinkSession::DeliveryStatus status) {
+          if(status == ILinkSession::DeliveryStatus::eDeliverySuccess)
+            DoCallback(callback, SendStatus::Success);
+          else
+            DoCallback(callback, SendStatus::Congestion);
+        });
   }
 
   bool

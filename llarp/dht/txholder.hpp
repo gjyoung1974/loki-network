@@ -3,7 +3,6 @@
 
 #include <dht/tx.hpp>
 #include <dht/txowner.hpp>
-#include <util/logger.hpp>
 #include <util/time.hpp>
 #include <util/status.hpp>
 
@@ -40,22 +39,22 @@ namespace llarp
                              {"owner", item.first.ExtractStatus()},
                              {"tx", item.second->ExtractStatus()}};
                        });
-        obj.Put("tx", txObjs);
+        obj["tx"] = txObjs;
         std::transform(
             timeouts.begin(), timeouts.end(), std::back_inserter(timeoutsObjs),
             [](const auto& item) -> util::StatusObject {
               return util::StatusObject{{"time", item.second},
-                                        {"target", item.first.ToHex()}};
+                                        {"target", item.first.ToString()}};
             });
-        obj.Put("timeouts", timeoutsObjs);
+        obj["timeouts"] = timeoutsObjs;
         std::transform(waiting.begin(), waiting.end(),
                        std::back_inserter(waitingObjs),
                        [](const auto& item) -> util::StatusObject {
                          return util::StatusObject{
-                             {"target", item.first.ToHex()},
+                             {"target", item.first.ToString()},
                              {"whoasked", item.second.ExtractStatus()}};
                        });
-        obj.Put("waiting", waitingObjs);
+        obj["waiting"] = waitingObjs;
         return obj;
       }
 

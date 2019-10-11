@@ -1,10 +1,12 @@
-#include <crypto/crypto_noop.hpp>
+#include <crypto/crypto_libsodium.hpp>
 #include <ev/ev.h>
 #include <iwp/iwp.hpp>
 #include <llarp_test.hpp>
+#include <iwp/iwp.hpp>
 #include <messages/link_intro.hpp>
 #include <messages/discard.hpp>
-#include <utp/utp.hpp>
+
+
 
 #include <test_util.hpp>
 
@@ -13,7 +15,7 @@
 using namespace ::llarp;
 using namespace ::testing;
 
-struct LinkLayerTest : public test::LlarpTest< NoOpCrypto >
+struct LinkLayerTest : public test::LlarpTest< llarp::sodium::CryptoLibSodium >
 {
   static constexpr uint16_t AlicePort = 5000;
   static constexpr uint16_t BobPort   = 6000;
@@ -62,7 +64,7 @@ struct LinkLayerTest : public test::LlarpTest< NoOpCrypto >
     localLoopBack()
     {
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) \
-    || (__APPLE__ && __MACH__)
+    || (__APPLE__ && __MACH__) || (__sun)
       return "lo0";
 #else
       return "lo";
@@ -118,10 +120,10 @@ struct LinkLayerTest : public test::LlarpTest< NoOpCrypto >
   void
   SetUp()
   {
-    oldRCLifetime               = RouterContact::Lifetime;
-    RouterContact::IgnoreBogons = true;
-    RouterContact::Lifetime     = 500;
-    netLoop                     = llarp_make_ev_loop();
+    oldRCLifetime              = RouterContact::Lifetime;
+    RouterContact::BlockBogons = false;
+    RouterContact::Lifetime    = 500;
+    netLoop                    = llarp_make_ev_loop();
     m_logic.reset(new Logic());
   }
 
@@ -132,8 +134,8 @@ struct LinkLayerTest : public test::LlarpTest< NoOpCrypto >
     Bob.TearDown();
     m_logic.reset();
     netLoop.reset();
-    RouterContact::IgnoreBogons = false;
-    RouterContact::Lifetime     = oldRCLifetime;
+    RouterContact::BlockBogons = true;
+    RouterContact::Lifetime    = oldRCLifetime;
   }
 
   static void
@@ -167,12 +169,12 @@ struct LinkLayerTest : public test::LlarpTest< NoOpCrypto >
   }
 };
 
-TEST_F(LinkLayerTest, TestUTPAliceRenegWithBob)
+TEST_F(LinkLayerTest, TestIWP)
 {
 #ifdef WIN32
-  GTEST_SKIP();
+    GTEST_SKIP();
 #else
-  Alice.link = utp::NewServer(
+    Alice.link = iwp::NewInboundLink(
       Alice.encryptionKey,
       [&]() -> const RouterContact& { return Alice.GetRC(); },
       [&](ILinkSession* s, const llarp_buffer_t& buf) -> bool {
@@ -193,14 +195,15 @@ TEST_F(LinkLayerTest, TestUTPAliceRenegWithBob)
           return true;
         }
       },
+      [&](Signature& sig, const llarp_buffer_t& buf) -> bool {
+        return m_crypto.sign(sig, Alice.signingKey, buf);
+      },
       [&](ILinkSession* s) -> bool {
         const auto rc = s->GetRemoteRC();
         return rc.pubkey == Bob.GetRC().pubkey;
       },
       [&](RouterContact, RouterContact) -> bool { return true; },
-      [&](Signature& sig, const llarp_buffer_t& buf) -> bool {
-        return m_crypto.sign(sig, Alice.signingKey, buf);
-      },
+     
       [&](ILinkSession* session) {
         ASSERT_FALSE(session->IsEstablished());
         Stop();
@@ -216,10 +219,10 @@ TEST_F(LinkLayerTest, TestUTPAliceRenegWithBob)
       return false;
     otherBuf.sz = otherBuf.cur - otherBuf.base;
     otherBuf.cur = otherBuf.base;
-    return s->SendMessageBuffer(otherBuf);
+    return s->SendMessageBuffer(otherBuf, nullptr);
   };
 
-  Bob.link = utp::NewServer(
+  Bob.link = iwp::NewInboundLink(
       Bob.encryptionKey, [&]() -> const RouterContact& { return Bob.GetRC(); },
       [&](ILinkSession* s, const llarp_buffer_t& buf) -> bool {
         LinkIntroMessage msg;
@@ -230,6 +233,10 @@ TEST_F(LinkLayerTest, TestUTPAliceRenegWithBob)
           return false;
         Bob.gotLIM = true;
         return sendDiscardMessage(s);
+      },
+
+      [&](Signature& sig, const llarp_buffer_t& buf) -> bool {
+        return m_crypto.sign(sig, Bob.signingKey, buf);
       },
       [&](ILinkSession* s) -> bool {
         if(s->GetRemoteRC().pubkey != Alice.GetRC().pubkey)
@@ -242,9 +249,6 @@ TEST_F(LinkLayerTest, TestUTPAliceRenegWithBob)
         success = newrc.pubkey == oldrc.pubkey;
         return true;
       },
-      [&](Signature& sig, const llarp_buffer_t& buf) -> bool {
-        return m_crypto.sign(sig, Bob.signingKey, buf);
-      },
       [&](ILinkSession* session) { ASSERT_FALSE(session->IsEstablished()); },
       [&](RouterID router) { ASSERT_EQ(router, Alice.GetRouterID()); });
 
@@ -255,96 +259,5 @@ TEST_F(LinkLayerTest, TestUTPAliceRenegWithBob)
 
   RunMainloop();
   ASSERT_TRUE(Bob.gotLIM);
-  ASSERT_TRUE(success);
 #endif
-}
-
-TEST_F(LinkLayerTest, TestUTPAliceConnectToBob)
-{
-#ifdef WIN32
-  GTEST_SKIP();
-#else
-  Alice.link = utp::NewServer(
-      Alice.encryptionKey,
-      [&]() -> const RouterContact& { return Alice.GetRC(); },
-      [&](ILinkSession* s, const llarp_buffer_t& buf) -> bool {
-        LinkIntroMessage lim;
-        llarp_buffer_t copy(buf.base, buf.sz);
-        if(lim.BDecode(&copy))
-        {
-          if(s->GotLIM(&lim))
-          {
-            Alice.gotLIM = true;
-            return true;
-          }
-          return false;
-        }
-        return AliceGotMessage(buf);
-      },
-      [&](ILinkSession* s) -> bool {
-        if(s->GetRemoteRC().pubkey != Bob.GetRC().pubkey)
-          return false;
-        LogInfo("alice established with bob");
-        return true;
-      },
-      [&](RouterContact, RouterContact) -> bool { return true; },
-      [&](Signature& sig, const llarp_buffer_t& buf) -> bool {
-        return m_crypto.sign(sig, Alice.signingKey, buf);
-      },
-      [&](ILinkSession* session) {
-        ASSERT_FALSE(session->IsEstablished());
-        Stop();
-      },
-      [&](RouterID router) { ASSERT_EQ(router, Bob.GetRouterID()); });
-
-  Bob.link = utp::NewServer(
-      Bob.encryptionKey, [&]() -> const RouterContact& { return Bob.GetRC(); },
-      [&](ILinkSession* s, const llarp_buffer_t& buf) -> bool {
-        LinkIntroMessage lim;
-        llarp_buffer_t copy(buf.base, buf.sz);
-        if(lim.BDecode(&copy))
-        {
-          if(s->GotLIM(&lim))
-          {
-            Bob.gotLIM = true;
-            return true;
-          }
-          return false;
-        }
-        return true;
-      },
-      [&](ILinkSession* s) -> bool {
-        if(s->GetRemoteRC().pubkey != Alice.GetRC().pubkey)
-          return false;
-        LogInfo("bob established with alice");
-        m_logic->queue_job({s, [](void* u) {
-                              ILinkSession* self =
-                                  static_cast< ILinkSession* >(u);
-                              std::array< byte_t, 32 > tmp;
-                              llarp_buffer_t otherBuf(tmp);
-                              DiscardMessage discard;
-                              if(!discard.BEncode(&otherBuf))
-                                return;
-                              otherBuf.sz = otherBuf.cur - otherBuf.base;
-                              otherBuf.cur = otherBuf.base;
-                              self->SendMessageBuffer(otherBuf);
-                            }});
-        return true;
-      },
-      [&](RouterContact, RouterContact) -> bool { return true; },
-      [&](Signature& sig, const llarp_buffer_t& buf) -> bool {
-        return m_crypto.sign(sig, Bob.signingKey, buf);
-      },
-      [&](ILinkSession* session) { ASSERT_FALSE(session->IsEstablished()); },
-      [&](RouterID router) { ASSERT_EQ(router, Alice.GetRouterID()); });
-
-  ASSERT_TRUE(Alice.Start(m_logic, netLoop, AlicePort));
-  ASSERT_TRUE(Bob.Start(m_logic, netLoop, BobPort));
-
-  ASSERT_TRUE(Alice.link->TryEstablishTo(Bob.GetRC()));
-
-  RunMainloop();
-  ASSERT_TRUE(Bob.gotLIM);
-  ASSERT_TRUE(success);
-#endif
-}
+};

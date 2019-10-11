@@ -5,9 +5,9 @@
 #include <crypto/crypto.hpp>
 #include <service/context.hpp>
 #include <router_contact.hpp>
-#include <util/memfn.hpp>
+#include <util/meta/memfn.hpp>
 #include <util/types.hpp>
-#include <util/threading.hpp>
+#include <util/thread/threading.hpp>
 #include <nodedb.hpp>
 #include <dht/context.hpp>
 
@@ -133,14 +133,15 @@ namespace llarp
 
     if(not rc.Verify(_dht->impl->Now()))
     {
+      LogWarn("RC for ", RouterID(rc.pubkey), " is invalid");
       return false;
     }
 
     // update nodedb if required
     if(rc.IsPublicRouter())
     {
-      LogInfo("Adding or updating RC for ", RouterID(rc.pubkey),
-              " to nodedb and dht.");
+      LogDebug("Adding or updating RC for ", RouterID(rc.pubkey),
+               " to nodedb and dht.");
       _nodedb->UpdateAsyncIfNewer(rc);
       _dht->impl->PutRCNodeAsync(rc);
     }
@@ -294,6 +295,7 @@ namespace llarp
   bool
   RCLookupHandler::HavePendingLookup(RouterID remote) const
   {
+    util::Lock l(&_mutex);
     return pendingCallbacks.find(remote) != pendingCallbacks.end();
   }
 

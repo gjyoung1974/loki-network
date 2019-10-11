@@ -14,7 +14,7 @@
 
 #include <net/net_addr.hpp>
 #include <net/ip.hpp>
-#include <util/logger.hpp>
+#include <util/logging/logger.hpp>
 #include <util/str.hpp>
 
 #include <cstdio>
@@ -786,7 +786,7 @@ llarp_getifaddr(const char* ifname, int af, struct sockaddr* addr)
         if(af == AF_INET6)
         {
           // set scope id
-          sockaddr_in6* ip6addr  = (sockaddr_in6*)addr;
+          auto* ip6addr          = (sockaddr_in6*)addr;
           ip6addr->sin6_scope_id = if_nametoindex(ifname);
           ip6addr->sin6_flowinfo = 0;
         }
@@ -861,8 +861,8 @@ namespace llarp
         const auto fam = i->ifa_addr->sa_family;
         if(fam != AF_INET)
           return;
-        sockaddr_in* addr = (sockaddr_in*)i->ifa_addr;
-        sockaddr_in* mask = (sockaddr_in*)i->ifa_netmask;
+        auto* addr = (sockaddr_in*)i->ifa_addr;
+        auto* mask = (sockaddr_in*)i->ifa_netmask;
         nuint32_t ifaddr{addr->sin_addr.s_addr};
         nuint32_t ifmask{mask->sin_addr.s_addr};
         currentRanges.emplace_back(
@@ -870,10 +870,10 @@ namespace llarp
                     net::IPPacket::ExpandV4(xntohl(ifmask))});
       }
     });
+    // try 10.x.0.0/16
     byte_t oct = 0;
     while(oct < 255)
     {
-      // TODO: check for range inbetween these
       const huint32_t loaddr = ipaddr_ipv4_bits(10, oct, 0, 1);
       const huint32_t hiaddr = ipaddr_ipv4_bits(10, oct, 255, 255);
       bool hit               = false;
@@ -885,6 +885,38 @@ namespace llarp
         return loaddr.ToString() + "/16";
       ++oct;
     }
+    // try 192.168.x.0/24
+    oct = 0;
+    while(oct < 255)
+    {
+      const huint32_t loaddr = ipaddr_ipv4_bits(192, 168, oct, 1);
+      const huint32_t hiaddr = ipaddr_ipv4_bits(192, 168, oct, 255);
+      bool hit               = false;
+      for(const auto& range : currentRanges)
+      {
+        hit = hit || range.ContainsV4(loaddr) || range.ContainsV4(hiaddr);
+      }
+      if(!hit)
+        return loaddr.ToString() + "/24";
+    }
+    // try 172.16.x.0/24
+    oct = 0;
+    while(oct < 255)
+    {
+      const huint32_t loaddr = ipaddr_ipv4_bits(172, 16, oct, 1);
+      const huint32_t hiaddr = ipaddr_ipv4_bits(172, 16, oct, 255);
+      bool hit               = false;
+      for(const auto& range : currentRanges)
+      {
+        hit = hit || range.ContainsV4(loaddr) || range.ContainsV4(hiaddr);
+      }
+      if(!hit)
+        return loaddr.ToString() + "/24";
+      ++oct;
+    }
+    LogError(
+        "cannot autodetect any free ip ranges on your system for use, please "
+        "configure this manually");
     return "";
   }
 
@@ -926,7 +958,7 @@ namespace llarp
   GetIFAddr(const std::string& ifname, Addr& addr, int af)
   {
     sockaddr_storage s;
-    sockaddr* sptr = (sockaddr*)&s;
+    auto* sptr = (sockaddr*)&s;
     if(!llarp_getifaddr(ifname.c_str(), af, sptr))
       return false;
     addr = *sptr;

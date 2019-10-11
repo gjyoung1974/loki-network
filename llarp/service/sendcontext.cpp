@@ -3,23 +3,22 @@
 #include <router/abstractrouter.hpp>
 #include <routing/path_transfer_message.hpp>
 #include <service/endpoint.hpp>
-#include <util/logic.hpp>
+#include <util/thread/logic.hpp>
+#include <utility>
 
 namespace llarp
 {
   namespace service
   {
-    SendContext::SendContext(const ServiceInfo& ident,
-                             const Introduction& intro, path::PathSet* send,
-                             Endpoint* ep)
-        : remoteIdent(ident)
+    SendContext::SendContext(ServiceInfo ident, const Introduction& intro,
+                             path::PathSet* send, Endpoint* ep)
+        : remoteIdent(std::move(ident))
         , remoteIntro(intro)
         , m_PathSet(send)
         , m_DataHandler(ep)
         , m_Endpoint(ep)
     {
       createdAt = ep->Now();
-      currentConvoTag.Zero();
     }
 
     bool
@@ -43,6 +42,7 @@ namespace llarp
         if(item.second->SendRoutingMessage(*item.first, r))
         {
           lastGoodSend = r->Now();
+          m_Endpoint->MarkConvoTagActive(item.first->T.T);
         }
         else
           LogError(m_Endpoint->Name(), " failed to send frame on path");

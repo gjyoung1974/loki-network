@@ -13,7 +13,8 @@ CXX ?= c++
 
 BUILD_TYPE ?= Debug
 
-PYTHON ?= python3
+PYTHON ?= python
+PYTHON3 ?= python3
 
 SETCAP ?= which setcap && setcap cap_net_admin,cap_net_bind_service=+eip
 
@@ -64,8 +65,10 @@ TOOLCHAIN ?=
 AVX2 ?= OFF
 # non x86 target
 NON_PC_TARGET ?= OFF
-# statically link
+# statically link everything
 STATIC_LINK ?= OFF
+# statically link dependencies
+STATIC ?= OFF
 # enable network namespace isolation
 NETNS ?= OFF
 # enable shell hooks callbacks
@@ -77,13 +80,15 @@ SHARED_LIB ?= OFF
 # enable generating coverage
 COVERAGE ?= OFF
 COVERAGE_OUTDIR ?= "$(TMPDIR)/lokinet-coverage"
+# enable ASAN
+ASAN ?= OFF
 
 # cmake generator type
 CMAKE_GEN ?= Unix Makefiles
 
 
 ifdef NINJA
-	MAKE = $(NINJA) -k0
+	MAKE = $(NINJA)
 	CMAKE_GEN = Ninja
 endif
 
@@ -95,16 +100,18 @@ UNAME = $(shell which uname)
 
 ifeq ($(shell $(UNAME)),SunOS)
 CONFIG_CMD = $(shell gecho -n "cd '$(BUILD_ROOT)' && " ; gecho -n "cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_SHELLHOOKS=$(SHELL_HOOKS) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
+CONFIG_CMD_WINDOWS = $(shell gecho -n "cd '$(BUILD_ROOT)' && " ; gecho -n "cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=ON -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_SHELLHOOKS=$(SHELL_HOOKS) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
 
 ANALYZE_CONFIG_CMD = $(shell gecho -n "cd '$(BUILD_ROOT)' && " ; gecho -n "$(SCAN_BUILD) cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
 
 COVERAGE_CONFIG_CMD = $(shell gecho -n "cd '$(BUILD_ROOT)' && " ; gecho -n "cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DWITH_COVERAGE=yes -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
 else
 CONFIG_CMD = $(shell /bin/echo -n "cd '$(BUILD_ROOT)' && " ; /bin/echo -n "cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_SHELLHOOKS=$(SHELL_HOOKS) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
+CONFIG_CMD_WINDOWS = $(shell /bin/echo -n "cd '$(BUILD_ROOT)' && " ; /bin/echo -n "cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=ON -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_SHELLHOOKS=$(SHELL_HOOKS) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
 
-ANALYZE_CONFIG_CMD = $(shell /bin/echo -n "cd '$(BUILD_ROOT)' && " ; /bin/echo -n "$(SCAN_BUILD) cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
+ANALYZE_CONFIG_CMD = $(shell /bin/echo -n "cd '$(BUILD_ROOT)' && " ; /bin/echo -n "$(SCAN_BUILD) cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DASAN=$(ASAN) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
 
-COVERAGE_CONFIG_CMD = $(shell /bin/echo -n "cd '$(BUILD_ROOT)' && " ; /bin/echo -n "cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DWITH_COVERAGE=yes -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
+COVERAGE_CONFIG_CMD = $(shell /bin/echo -n "cd '$(BUILD_ROOT)' && " ; /bin/echo -n "cmake -G'$(CMAKE_GEN)' -DCMAKE_CROSSCOMPILING=$(CROSS) -DSTATIC_LINK_RUNTIME=$(STATIC_LINK) -DUSE_NETNS=$(NETNS) -DUSE_AVX2=$(AVX2) -DNON_PC_TARGET=$(NON_PC_TARGET) -DWITH_SHARED=$(SHARED_LIB) -DWITH_COVERAGE=yes -DASAN=$(ASAN) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON '$(REPO)'")
 endif
 
 TARGETS = $(REPO)/lokinet
@@ -134,7 +141,7 @@ debug-configure:
 
 release-configure: clean
 	mkdir -p '$(BUILD_ROOT)'
-	$(CONFIG_CMD) -DCMAKE_BUILD_TYPE=Release -DRELEASE_MOTTO="$(shell cat motto.txt)" -DCMAKE_C_FLAGS='$(CFLAGS)' -DCMAKE_CXX_FLAGS='$(CXXFLAGS)'
+	$(CONFIG_CMD) -DCMAKE_BUILD_TYPE=Release -DSTATIC_LINK=ON -DRELEASE_MOTTO="$(shell cat motto.txt)" -DCMAKE_C_FLAGS='$(CFLAGS)' -DCMAKE_CXX_FLAGS='$(CXXFLAGS)'
 
 debug: debug-configure
 	$(MAKE) -C $(BUILD_ROOT)
@@ -161,7 +168,7 @@ shadow-build: shadow-configure
 	$(MAKE) -C $(BUILD_ROOT)
 
 shadow-run: shadow-build
-	$(PYTHON) $(REPO)/contrib/shadow/genconf.py $(SHADOW_CONFIG)
+	$(PYTHON3) $(REPO)/contrib/shadow/genconf.py $(SHADOW_CONFIG)
 	cp $(SHADOW_PLUGIN) $(REPO)/libshadow-plugin-lokinet.so
 	$(SHADOW_BIN) $(SHADOW_OPTS) $(SHADOW_CONFIG) | $(SHADOW_PARSE)
 
@@ -183,7 +190,7 @@ testnet-build: testnet-configure
 testnet:
 	cp $(EXE) $(TESTNET_EXE)
 	mkdir -p $(TESTNET_ROOT)
-	$(PYTHON) $(REPO)/contrib/testnet/genconf.py --bin=$(TESTNET_EXE) --svc=$(TESTNET_SERVERS) --clients=$(TESTNET_CLIENTS) --dir=$(TESTNET_ROOT) --out $(TESTNET_CONF) --ifname=$(TESTNET_IFNAME) --baseport=$(TESTNET_BASEPORT) --ip=$(TESTNET_IP) --netid=$(TESTNET_NETID)
+	$(PYTHON3) $(REPO)/contrib/testnet/genconf.py --bin=$(TESTNET_EXE) --svc=$(TESTNET_SERVERS) --clients=$(TESTNET_CLIENTS) --dir=$(TESTNET_ROOT) --out $(TESTNET_CONF) --ifname=$(TESTNET_IFNAME) --baseport=$(TESTNET_BASEPORT) --ip=$(TESTNET_IP) --netid=$(TESTNET_NETID)
 	LLARP_DEBUG=$(TESTNET_DEBUG) supervisord -n -d $(TESTNET_ROOT) -l $(TESTNET_LOG) -c $(TESTNET_CONF)
 
 $(TEST_EXE): debug
@@ -217,7 +224,7 @@ android: android-gradle
 
 windows-debug-configure: clean
 	mkdir -p '$(BUILD_ROOT)'
-	$(CONFIG_CMD) -DCMAKE_TOOLCHAIN_FILE='$(REPO)/contrib/cross/mingw.cmake'  -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_ASM_FLAGS='$(ASFLAGS)' -DCMAKE_C_FLAGS='$(CFLAGS)' -DCMAKE_CXX_FLAGS='$(CXXFLAGS)'
+	$(CONFIG_CMD_WINDOWS) -DCMAKE_TOOLCHAIN_FILE='$(REPO)/contrib/cross/mingw.cmake'  -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_ASM_FLAGS='$(ASFLAGS)' -DCMAKE_C_FLAGS='$(CFLAGS)' -DCMAKE_CXX_FLAGS='$(CXXFLAGS)'
 
 windows-debug: windows-debug-configure
 	$(MAKE) -C '$(BUILD_ROOT)'
@@ -225,7 +232,7 @@ windows-debug: windows-debug-configure
 
 windows-release-configure: clean
 	mkdir -p '$(BUILD_ROOT)'
-	$(CONFIG_CMD) -DCMAKE_TOOLCHAIN_FILE='$(REPO)/contrib/cross/mingw.cmake'  -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_ASM_FLAGS='$(ASFLAGS)' -DCMAKE_C_FLAGS='$(CFLAGS)' -DCMAKE_CXX_FLAGS='$(CXXFLAGS)'
+	$(CONFIG_CMD_WINDOWS) -DCMAKE_TOOLCHAIN_FILE='$(REPO)/contrib/cross/mingw.cmake'  -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_ASM_FLAGS='$(ASFLAGS)' -DCMAKE_C_FLAGS='$(CFLAGS)' -DCMAKE_CXX_FLAGS='$(CXXFLAGS)'
 
 windows-release: windows-release-configure
 	$(MAKE) -C '$(BUILD_ROOT)'
@@ -238,6 +245,11 @@ abyss: debug
 
 format:
 	clang-format -i $$(find jni daemon llarp include libabyss | grep -E '\.[h,c](pp)?$$')
+
+format-verify: format
+	(type clang-format)
+	clang-format --version
+	git diff --quiet || (echo 'Please run make format!!' && git --no-pager diff ; exit 1)
 
 analyze-config: clean
 	mkdir -p '$(BUILD_ROOT)'
@@ -270,7 +282,7 @@ docker-kubernetes:
 	docker build -f docker/loki-svc-kubernetes.Dockerfile .
 
 install-pylokinet:
-	cd $(REPO)/contrib/py/pylokinet && $(PYTHON) setup.py install
+	cd $(REPO)/contrib/py/pylokinet && $(PYTHON3) setup.py install
 
 kubernetes-install: install install-pylokinet
 

@@ -23,10 +23,8 @@ namespace llarp
 
     struct IServiceLookup
     {
-      IServiceLookup() = delete;
-      virtual ~IServiceLookup()
-      {
-      }
+      IServiceLookup()          = delete;
+      virtual ~IServiceLookup() = default;
 
       /// handle lookup result
       virtual bool
@@ -53,7 +51,7 @@ namespace llarp
       bool
       SendRequestViaPath(path::Path_ptr p, AbstractRouter* r);
 
-      ILookupHolder* parent;
+      ILookupHolder* m_parent;
       uint64_t txid;
       const std::string name;
       RouterID endpoint;
@@ -71,8 +69,7 @@ namespace llarp
       }
 
      protected:
-      IServiceLookup(ILookupHolder* parent, uint64_t tx,
-                     const std::string& name);
+      IServiceLookup(ILookupHolder* parent, uint64_t tx, std::string name);
 
       llarp_time_t m_created;
     };

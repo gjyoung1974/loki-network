@@ -3,11 +3,15 @@ if(NOT WIN32)
 endif()
 
 enable_language(RC)
-set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -lshlwapi")
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-add_compile_options(/EHca /arch:AVX2 /MD)
-add_definitions(-D_SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING)
+if (MSVC OR MSVC_VERSION)
+  add_compile_options(/EHca /arch:AVX2 /MD)
+  add_definitions(-D_SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING)
+  if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
+      add_compile_options(-Wno-nonportable-system-include-path)
+  endif()
+endif()
 
 if(NOT MSVC_VERSION)
   add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-bad-function-cast>)
@@ -15,8 +19,16 @@ if(NOT MSVC_VERSION)
   # unlike unix where you get a *single* compiler ID string in .comment
   # GNU ld sees fit to merge *all* the .ident sections in object files
   # to .r[o]data section one after the other!
-  add_compile_options(-fno-ident)
+  add_compile_options(-fno-ident -Wa,-mbig-obj)
+  link_libraries( -lshlwapi -ldbghelp )
+  add_definitions(-DWINVER=0x0500 -D_WIN32_WINNT=0x0500)
+  # Wait a minute, if we're not Microsoft C++, nor a Clang paired with Microsoft C++,
+  # then the only possible option has to be GNU or a GNU-linked Clang!
   set(FS_LIB stdc++fs)
+endif()
+
+if(EMBEDDED_CFG)
+  link_libatomic()
 endif()
 
 get_filename_component(LIBTUNTAP_IMPL ${TT_ROOT}/tuntap-windows.c ABSOLUTE)

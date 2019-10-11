@@ -17,7 +17,7 @@
 #include <path/path_context.hpp>
 #include <router/abstractrouter.hpp>
 #include <routing/dht_message.hpp>
-#include <util/logic.hpp>
+#include <util/thread/logic.hpp>
 #include <nodedb.hpp>
 
 #include <vector>
@@ -26,17 +26,13 @@ namespace llarp
 {
   namespace dht
   {
-    AbstractContext::~AbstractContext()
-    {
-    }
+    AbstractContext::~AbstractContext() = default;
 
     struct Context final : public AbstractContext
     {
       Context();
 
-      ~Context()
-      {
-      }
+      ~Context() override = default;
 
       util::StatusObject
       ExtractStatus() const override;
@@ -167,7 +163,7 @@ namespace llarp
       void
       Explore(size_t N = 3);
 
-      llarp::AbstractRouter* router;
+      llarp::AbstractRouter* router{nullptr};
       // for router contacts
       std::unique_ptr< Bucket< RCNode > > _nodes;
 
@@ -180,7 +176,7 @@ namespace llarp
         return _services.get();
       }
 
-      bool allowTransit;
+      bool allowTransit{false};
 
       bool&
       AllowTransit() override
@@ -308,7 +304,7 @@ namespace llarp
       Key_t ourKey;
     };
 
-    Context::Context() : router(nullptr), allowTransit(false)
+    Context::Context()
     {
       randombytes((byte_t*)&ids, sizeof(uint64_t));
     }
@@ -334,11 +330,11 @@ namespace llarp
     Context::ExploreNetworkVia(const Key_t& askpeer)
     {
       uint64_t txid = ++ids;
-      TXOwner peer(askpeer, txid);
-      TXOwner whoasked(OurKey(), txid);
+      const TXOwner peer(askpeer, txid);
+      const TXOwner whoasked(OurKey(), txid);
+      const RouterID K(askpeer.as_array());
       pendingExploreLookups().NewTX(
-          peer, whoasked, askpeer.as_array(),
-          new ExploreNetworkJob(askpeer.as_array(), this));
+          peer, whoasked, K, new ExploreNetworkJob(askpeer.as_array(), this));
     }
 
     void
@@ -346,7 +342,7 @@ namespace llarp
     {
       if(left)
         return;
-      Context* ctx = static_cast< Context* >(u);
+      auto* ctx = static_cast< Context* >(u);
       const auto num =
           std::min(ctx->router->NumberOfConnectedRouters(), size_t(4));
       if(num)
@@ -361,7 +357,7 @@ namespace llarp
     {
       if(left)
         return;
-      Context* ctx = static_cast< Context* >(u);
+      auto* ctx = static_cast< Context* >(u);
       // clean up transactions
       ctx->CleanupTX();
 
@@ -649,7 +645,7 @@ namespace llarp
     {
       std::vector< RouterID > closer;
       const Key_t t(target.as_array());
-      std::set< Key_t > found;
+      std::set< Key_t > foundRouters;
       if(!_nodes)
         return false;
 
@@ -665,7 +661,8 @@ namespace llarp
       // ourKey should never be in the connected list
       // requester is likely in the connected list
       // 4 or connection nodes (minus a potential requestor), whatever is less
-      if(!_nodes->GetManyNearExcluding(t, found, nodeCount >= 4 ? 4 : 1,
+      if(!_nodes->GetManyNearExcluding(t, foundRouters,
+                                       std::min(nodeCount, size_t{4}),
                                        std::set< Key_t >{ourKey, requester}))
       {
         llarp::LogError(
@@ -674,12 +671,11 @@ namespace llarp
             nodeCount, " dht peers");
         return false;
       }
-      for(const auto& f : found)
+      for(const auto& f : foundRouters)
       {
-        const RouterID r(f.as_array());
-        if(GetRouter()->ConnectionToRouterAllowed(r))
-          closer.emplace_back(r);
+        closer.emplace_back(f.as_array());
       }
+      llarp::LogDebug("Gave ", closer.size(), " routers for exploration");
       reply.emplace_back(new GotRouterMessage(txid, closer, false));
       return true;
     }

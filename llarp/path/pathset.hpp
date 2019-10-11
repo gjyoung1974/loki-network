@@ -6,7 +6,7 @@
 #include <routing/message.hpp>
 #include <service/intro_set.hpp>
 #include <util/status.hpp>
-#include <util/threading.hpp>
+#include <util/thread/threading.hpp>
 #include <util/time.hpp>
 
 #include <functional>
@@ -34,6 +34,7 @@ namespace llarp
       ePathBuilding,
       ePathEstablished,
       ePathTimeout,
+      ePathFailed,
       ePathIgnore,
       ePathExpired
     };
@@ -126,6 +127,9 @@ namespace llarp
 
       virtual void
       HandlePathBuildTimeout(Path_ptr path);
+
+      virtual void
+      HandlePathBuildFailed(Path_ptr path);
 
       virtual void
       PathBuildStarted(Path_ptr path);

@@ -2,6 +2,7 @@ set(LIB_UTIL_SRC
   config/config.cpp
   config/ini.cpp
   constants/defaults.cpp
+  constants/limits.cpp
   constants/link_layer.cpp
   constants/path.cpp
   constants/proto.cpp
@@ -16,39 +17,42 @@ set(LIB_UTIL_SRC
   util/endian.cpp
   util/fs.cpp
   util/json.cpp
-  util/logger.cpp
-  util/android_logger.cpp
-  util/file_logger.cpp
-  util/logic.cpp
-  util/loglevel.cpp
+  util/logging/android_logger.cpp
+  util/logging/file_logger.cpp
+  util/logging/json_logger.cpp
+  util/logging/logger.cpp
+  util/logging/loglevel.cpp
+  util/logging/ostream_logger.cpp
+  util/logging/syslog_logger.cpp
+  util/logging/win32_logger.cpp
   util/mem.cpp
-  util/memfn_traits.cpp
-  util/memfn.cpp
-  util/metrics_core.cpp
-  util/metrics_types.cpp
-  util/json_logger.cpp
-  util/ostream_logger.cpp
-  util/syslog_logger.cpp
-  util/win32_logger.cpp
-  util/metrics.cpp
-  util/object.cpp
+  util/meta/memfn_traits.cpp
+  util/meta/memfn.cpp
+  util/meta/object.cpp
+  util/meta/traits.cpp
+  util/meta/variant.cpp
+  util/metrics/core.cpp
+  util/metrics/json_publisher.cpp
+  util/metrics/metrics.cpp
+  util/metrics/metrictank_publisher.cpp
+  util/metrics/stream_publisher.cpp
+  util/metrics/types.cpp
   util/printer.cpp
-  util/queue_manager.cpp
-  util/queue.cpp
-  util/scheduler.cpp
   util/status.cpp
   util/stopwatch.cpp
   util/str.cpp
   util/string_view.cpp
-  util/thread_pool.cpp
-  util/threading.cpp
-  util/threadpool.cpp
+  util/thread/logic.cpp
+  util/thread/queue_manager.cpp
+  util/thread/queue.cpp
+  util/thread/scheduler.cpp
+  util/thread/thread_pool.cpp
+  util/thread/threading.cpp
+  util/thread/threadpool.cpp
+  util/thread/timer.cpp
+  util/thread/timerqueue.cpp
   util/time.cpp
-  util/timer.cpp
-  util/timerqueue.cpp
-  util/traits.cpp
   util/types.cpp
-  util/variant.cpp
 )
 
 add_library(${UTIL_LIB} STATIC ${LIB_UTIL_SRC})
@@ -74,9 +78,6 @@ set(LIB_PLATFORM_SRC
 # for networking
   ev/ev.cpp
   ev/pipe.cpp
-  metrics/metrictank_publisher.cpp
-  metrics/json_publisher.cpp
-  metrics/stream_publisher.cpp
   net/ip.cpp
   net/net.cpp
   net/net_addr.cpp
@@ -104,7 +105,7 @@ else()
 endif(WIN32)
 
 add_library(${PLATFORM_LIB} STATIC ${LIB_PLATFORM_SRC})
-target_link_libraries(${PLATFORM_LIB} PUBLIC ${CRYPTOGRAPHY_LIB} ${UTIL_LIB} libutp Threads::Threads ${LIBS})
+target_link_libraries(${PLATFORM_LIB} PUBLIC ${CRYPTOGRAPHY_LIB} ${UTIL_LIB} Threads::Threads ${LIBS})
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   if(NON_PC_TARGET)
@@ -175,9 +176,11 @@ set(LIB_SRC
   handlers/null.cpp
   handlers/tun.cpp
   hook/shell.cpp
-  iwp/linklayer.cpp
-  iwp/outermessage.cpp
   iwp/iwp.cpp
+  iwp/linklayer.cpp
+  iwp/message_buffer.cpp
+  iwp/session.cpp
+  link/factory.cpp
   link/i_link_manager.cpp
   link/link_manager.cpp
   link/server.cpp
@@ -189,6 +192,7 @@ set(LIB_SRC
   messages/link_message.cpp
   messages/relay.cpp
   messages/relay_commit.cpp
+  messages/relay_status.cpp
   net/address_info.cpp
   net/exit_info.cpp
   nodedb.cpp
@@ -243,17 +247,12 @@ set(LIB_SRC
   service/tag_lookup_job.cpp
   service/tag.cpp
   service/vanity.cpp
-  utp/inbound_message.cpp
-  utp/linklayer.cpp
-  utp/session.cpp
-  utp/utp.cpp
 )
 if(TESTNET)
   set(LIB_SRC ${LIB_SRC} testnet.c)
 endif()
 
 add_library(${STATIC_LIB} STATIC ${LIB_SRC})
-set(LIBS ${LIBS} libutp)
 target_link_libraries(${STATIC_LIB} PUBLIC cxxopts ${ABYSS_LIB} ${PLATFORM_LIB} ${UTIL_LIB} ${CRYPTOGRAPHY_LIB} ${FS_LIB})
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")

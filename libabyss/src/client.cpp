@@ -3,7 +3,7 @@
 #include <abyss/md5.hpp>
 #include <crypto/crypto.hpp>
 #include <util/buffer.hpp>
-#include <util/logger.hpp>
+#include <util/logging/logger.hpp>
 
 namespace abyss
 {
@@ -416,7 +416,7 @@ namespace abyss
     bool
     JSONRPC::RunAsync(llarp_ev_loop_ptr loop, const std::string& remote)
     {
-      strncpy(m_connect.remote, remote.c_str(), sizeof(m_connect.remote));
+      strncpy(m_connect.remote, remote.c_str(), sizeof(m_connect.remote) - 1);
       // TODO: ipv6
       m_connect.connected = &JSONRPC::OnConnected;
       m_connect.error     = &JSONRPC::OnConnectFail;

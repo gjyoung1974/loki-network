@@ -16,12 +16,12 @@ namespace llarp
       {
       }
 
-      explicit Key_t(const Data& val) : AlignedBuffer< SIZE >(val)
+      explicit Key_t(const Data& data) : AlignedBuffer< SIZE >(data)
       {
       }
 
-      explicit Key_t(const AlignedBuffer< SIZE >& val)
-          : AlignedBuffer< SIZE >(val)
+      explicit Key_t(const AlignedBuffer< SIZE >& data)
+          : AlignedBuffer< SIZE >(data)
       {
       }
 
@@ -35,6 +35,12 @@ namespace llarp
       {
         const RouterID rid{as_array()};
         return rid.ToString();
+      }
+
+      std::string
+      ToString() const
+      {
+        return SNode();
       }
 
       Key_t

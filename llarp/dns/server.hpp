@@ -5,7 +5,7 @@
 #include <ev/ev.h>
 #include <net/net.hpp>
 #include <util/string_view.hpp>
-#include <util/logic.hpp>
+#include <util/thread/logic.hpp>
 
 #include <unordered_map>
 
@@ -16,9 +16,7 @@ namespace llarp
     /// handler of dns query hooking
     struct IQueryHandler
     {
-      virtual ~IQueryHandler()
-      {
-      }
+      virtual ~IQueryHandler() = default;
 
       /// return true if we should hook this message
       virtual bool

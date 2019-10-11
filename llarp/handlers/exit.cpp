@@ -29,7 +29,8 @@ namespace llarp
         , m_Resolver(std::make_shared< dns::Proxy >(
               r->netloop(), r->logic(), r->netloop(), r->logic(), this))
         , m_Name(name)
-        , m_Tun{{0}, 0, {0}, 0, 0, 0, 0, 0, 0, 0, 0}
+        , m_Tun{{0},     0,       {0},     nullptr, nullptr, nullptr,
+                nullptr, nullptr, nullptr, nullptr, nullptr}
         , m_LocalResolverAddr("127.0.0.1", 53)
         , m_InetToNetwork(name + "_exit_rx", r->netloop(), r->netloop())
 
@@ -40,9 +41,7 @@ namespace llarp
       m_ShouldInitTun = true;
     }
 
-    ExitEndpoint::~ExitEndpoint()
-    {
-    }
+    ExitEndpoint::~ExitEndpoint() = default;
 
     util::StatusObject
     ExitEndpoint::ExtractStatus() const
@@ -52,9 +51,9 @@ namespace llarp
       util::StatusObject exitsObj{};
       for(const auto &item : m_ActiveExits)
       {
-        exitsObj.Put(item.first.ToHex(), item.second->ExtractStatus());
+        exitsObj[item.first.ToString()] = item.second->ExtractStatus();
       }
-      obj.Put("exits", exitsObj);
+      obj["exits"] = exitsObj;
       return obj;
     }
 
@@ -171,10 +170,20 @@ namespace llarp
           }
           else if(m_SNodeKeys.find(pubKey) == m_SNodeKeys.end())
           {
-            // we do not have it mapped
-            // map it
-            ip = ObtainServiceNodeIP(r);
-            msg.AddINReply(ip, isV6);
+            // we do not have it mapped, async obtain it
+            ObtainSNodeSession(
+                r, [&](std::shared_ptr< exit::BaseSession > session) {
+                  if(session && session->IsReady())
+                  {
+                    msg.AddINReply(m_KeyToIP[pubKey], isV6);
+                  }
+                  else
+                  {
+                    msg.AddNXReply();
+                  }
+                  reply(msg);
+                });
+            return true;
           }
           else
           {
@@ -194,6 +203,14 @@ namespace llarp
       }
       reply(msg);
       return true;
+    }
+
+    void
+    ExitEndpoint::ObtainSNodeSession(const RouterID &router,
+                                     exit::SessionReadyFunc obtainCb)
+    {
+      ObtainServiceNodeIP(router);
+      m_SNodeSessions[router]->AddReadyHook(obtainCb);
     }
 
     llarp_time_t
@@ -229,7 +246,7 @@ namespace llarp
           {
             // drop
             LogWarn(Name(), " dropping packet, has no session at ",
-                    pkt.dstv4());
+                    pkt.dstv6());
             return;
           }
           pk = itr->second;

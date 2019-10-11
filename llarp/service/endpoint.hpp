@@ -17,7 +17,7 @@
 #include <service/tag_lookup_job.hpp>
 #include <hook/ihook.hpp>
 #include <util/compare_ptr.hpp>
-#include <util/logic.hpp>
+#include <util/thread/logic.hpp>
 
 // minimum time between introset shifts
 #ifndef MIN_SHIFT_INTERVAL
@@ -71,7 +71,7 @@ namespace llarp
       static const size_t MAX_OUTBOUND_CONTEXT_COUNT = 4;
 
       Endpoint(const std::string& nickname, AbstractRouter* r, Context* parent);
-      ~Endpoint();
+      ~Endpoint() override;
 
       /// return true if we are ready to recv packets from the void
       bool
@@ -94,7 +94,7 @@ namespace llarp
       virtual bool
       SetOption(const std::string& k, const std::string& v);
 
-      virtual void
+      void
       Tick(llarp_time_t now) override;
 
       /// return true if we have a resolvable ip address
@@ -111,7 +111,7 @@ namespace llarp
         return {0};
       }
 
-      virtual void
+      void
       ResetInternalState() override;
 
       /// router's logic
@@ -142,7 +142,7 @@ namespace llarp
       virtual bool
       Start();
 
-      virtual std::string
+      std::string
       Name() const override;
 
       bool
@@ -318,6 +318,9 @@ namespace llarp
       RemoveConvoTag(const ConvoTag& remote) override;
 
       void
+      MarkConvoTagActive(const ConvoTag& remote) override;
+
+      void
       PutReplyIntroFor(const ConvoTag& remote,
                        const Introduction& intro) override;
 
@@ -335,7 +338,7 @@ namespace llarp
       uint64_t
       GetSeqNoForConvo(const ConvoTag& tag);
 
-      virtual bool
+      bool
       SelectHop(llarp_nodedb* db, const std::set< RouterID >& prev,
                 RouterContact& cur, size_t hop, path::PathRole roles) override;
 

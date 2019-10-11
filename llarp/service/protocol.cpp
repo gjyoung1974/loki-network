@@ -2,9 +2,11 @@
 #include <path/path.hpp>
 #include <routing/handler.hpp>
 #include <util/buffer.hpp>
-#include <util/logic.hpp>
 #include <util/mem.hpp>
-#include <util/memfn.hpp>
+#include <util/meta/memfn.hpp>
+#include <util/thread/logic.hpp>
+
+#include <utility>
 
 namespace llarp
 {
@@ -19,9 +21,7 @@ namespace llarp
     {
     }
 
-    ProtocolMessage::~ProtocolMessage()
-    {
-    }
+    ProtocolMessage::~ProtocolMessage() = default;
 
     void
     ProtocolMessage::PutBuffer(const llarp_buffer_t& buf)
@@ -92,9 +92,7 @@ namespace llarp
       return bencode_end(buf);
     }
 
-    ProtocolFrame::~ProtocolFrame()
-    {
-    }
+    ProtocolFrame::~ProtocolFrame() = default;
 
     bool
     ProtocolFrame::BEncode(llarp_buffer_t* buf) const
@@ -255,11 +253,10 @@ namespace llarp
       const Introduction fromIntro;
 
       AsyncFrameDecrypt(std::shared_ptr< Logic > l, const Identity& localIdent,
-                        IDataHandler* h,
-                        const std::shared_ptr< ProtocolMessage >& m,
+                        IDataHandler* h, std::shared_ptr< ProtocolMessage > m,
                         const ProtocolFrame& f, const Introduction& recvIntro)
-          : logic(l)
-          , msg(m)
+          : logic(std::move(l))
+          , msg(std::move(m))
           , m_LocalIdentity(localIdent)
           , handler(h)
           , frame(f)
@@ -270,8 +267,8 @@ namespace llarp
       static void
       Work(void* user)
       {
-        AsyncFrameDecrypt* self = static_cast< AsyncFrameDecrypt* >(user);
-        auto crypto             = CryptoManager::instance();
+        auto* self  = static_cast< AsyncFrameDecrypt* >(user);
+        auto crypto = CryptoManager::instance();
         SharedSecret K;
         SharedSecret sharedKey;
         // copy
@@ -405,10 +402,15 @@ namespace llarp
         LogError("failed to decrypt message");
         return false;
       }
-      msg->handler        = handler;
-      const PathID_t from = F;
+      if(T != msg->tag && !msg->tag.IsZero())
+      {
+        LogError("convotag missmatch: ", T, " != ", msg->tag);
+        return false;
+      }
+      msg->handler            = handler;
+      const PathID_t fromPath = F;
       logic->queue_func(
-          [=]() { ProtocolMessage::ProcessAsync(recvPath, from, msg); });
+          [=]() { ProtocolMessage::ProcessAsync(recvPath, fromPath, msg); });
       return true;
     }
 
@@ -420,7 +422,7 @@ namespace llarp
     }
 
     bool
-    ProtocolFrame::Verify(const ServiceInfo& from) const
+    ProtocolFrame::Verify(const ServiceInfo& svc) const
     {
       ProtocolFrame copy(*this);
       // save signature
@@ -439,7 +441,7 @@ namespace llarp
       buf.sz  = buf.cur - buf.base;
       buf.cur = buf.base;
       // verify
-      return from.Verify(buf, Z);
+      return svc.Verify(buf, Z);
     }
 
     bool

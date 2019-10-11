@@ -2,8 +2,8 @@
 #define LLARP_I_LINK_MANAGER_HPP
 
 #include <link/server.hpp>
+#include <util/thread/logic.hpp>
 #include <util/types.hpp>
-#include <util/logic.hpp>
 
 #include <functional>
 
@@ -18,11 +18,6 @@ namespace llarp
   struct IOutboundSessionMaker;
   struct RouterID;
 
-  namespace util
-  {
-    struct StatusObject;
-  }  // namespace util
-
   struct ILinkManager
   {
     virtual ~ILinkManager() = default;
@@ -34,7 +29,8 @@ namespace llarp
     GetSessionMaker() const = 0;
 
     virtual bool
-    SendTo(const RouterID &remote, const llarp_buffer_t &buf) = 0;
+    SendTo(const RouterID &remote, const llarp_buffer_t &buf,
+           ILinkSession::CompletionHandler completed) = 0;
 
     virtual bool
     HasSessionTo(const RouterID &remote) const = 0;

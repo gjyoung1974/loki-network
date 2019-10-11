@@ -6,7 +6,7 @@
 #include <service/endpoint.hpp>
 #include <nodedb.hpp>
 #include <profiling.hpp>
-#include <util/memfn.hpp>
+#include <util/meta/memfn.hpp>
 
 namespace llarp
 {
@@ -44,8 +44,6 @@ namespace llarp
         if(MarkCurrentIntroBad(Now()))
         {
           SwapIntros();
-          LogInfo(Name(), " switched intros to ", remoteIntro.router, " via ",
-                  remoteIntro.pathID);
         }
         UpdateIntroSet(true);
       }
@@ -53,22 +51,21 @@ namespace llarp
     }
 
     OutboundContext::OutboundContext(const IntroSet& introset, Endpoint* parent)
-        : path::Builder(parent->Router(), 3, path::default_len)
+        : path::Builder(parent->Router(), 4, path::default_len)
         , SendContext(introset.A, {}, this, parent)
         , currentIntroSet(introset)
 
     {
       updatingIntroSet = false;
-      for(const auto intro : introset.I)
+      for(const auto& intro : introset.I)
       {
         if(intro.expiresAt > m_NextIntro.expiresAt)
           m_NextIntro = intro;
       }
+      currentConvoTag.Randomize();
     }
 
-    OutboundContext::~OutboundContext()
-    {
-    }
+    OutboundContext::~OutboundContext() = default;
 
     /// actually swap intros
     void
@@ -76,6 +73,7 @@ namespace llarp
     {
       if(remoteIntro != m_NextIntro)
       {
+        LogInfo(Name(), " swap intro to use ", RouterID(m_NextIntro.router));
         remoteIntro = m_NextIntro;
         m_DataHandler->PutIntroFor(currentConvoTag, remoteIntro);
         ShiftIntroduction(false);
@@ -115,7 +113,10 @@ namespace llarp
           BuildOneAlignedTo(m_NextIntro.router);
       }
       else
+      {
         ++m_LookupFails;
+        LogWarn(Name(), " failed to look up introset, fails=", m_LookupFails);
+      }
       return true;
     }
 
@@ -124,6 +125,32 @@ namespace llarp
     {
       return (!remoteIntro.router.IsZero())
           && GetPathByRouter(remoteIntro.router) != nullptr;
+    }
+
+    void
+    OutboundContext::ShiftIntroRouter(const RouterID r)
+    {
+      const auto now = Now();
+      Introduction selectedIntro;
+      for(const auto& intro : currentIntroSet.I)
+      {
+        if(intro.expiresAt > selectedIntro.expiresAt && intro.router != r)
+        {
+          selectedIntro = intro;
+        }
+      }
+      if(selectedIntro.router.IsZero() || selectedIntro.ExpiresSoon(now))
+        return;
+      LogWarn(Name(), " shfiting intro off of ", r, " to ",
+              RouterID(selectedIntro.router));
+      m_NextIntro = selectedIntro;
+    }
+
+    void
+    OutboundContext::HandlePathBuildTimeout(path::Path_ptr p)
+    {
+      ShiftIntroRouter(p->Endpoint());
+      path::Builder::HandlePathBuildTimeout(p);
     }
 
     void
@@ -137,8 +164,12 @@ namespace llarp
           util::memFn(&OutboundContext::HandleHiddenServiceFrame, this));
       p->SetDropHandler(util::memFn(&OutboundContext::HandleDataDrop, this));
       // we now have a path to the next intro, swap intros
-      if(p->Endpoint() == m_NextIntro.router && remoteIntro.router.IsZero())
+      if(p->Endpoint() == m_NextIntro.router)
         SwapIntros();
+      else
+      {
+        LogInfo(Name(), " built to non aligned router: ", p->Endpoint());
+      }
     }
 
     void
@@ -162,7 +193,6 @@ namespace llarp
           return;
         }
       }
-      currentConvoTag.Randomize();
       AsyncKeyExchange* ex = new AsyncKeyExchange(
           m_Endpoint->RouterLogic(), remoteIdent, m_Endpoint->GetIdentity(),
           currentIntroSet.K, remoteIntro, m_DataHandler, currentConvoTag, t);
@@ -215,27 +245,25 @@ namespace llarp
     util::StatusObject
     OutboundContext::ExtractStatus() const
     {
-      auto obj = path::Builder::ExtractStatus();
-      obj.Put("currentConvoTag", currentConvoTag.ToHex());
-      obj.Put("remoteIntro", remoteIntro.ExtractStatus());
-      obj.Put("sessionCreatedAt", createdAt);
-      obj.Put("lastGoodSend", lastGoodSend);
-      obj.Put("seqno", sequenceNo);
-      obj.Put("markedBad", markedBad);
-      obj.Put("lastShift", lastShift);
-      obj.Put("remoteIdentity", remoteIdent.Addr().ToString());
-      obj.Put("currentRemoteIntroset", currentIntroSet.ExtractStatus());
-      obj.Put("nextIntro", m_NextIntro.ExtractStatus());
-      std::vector< util::StatusObject > badIntrosObj;
+      auto obj                     = path::Builder::ExtractStatus();
+      obj["currentConvoTag"]       = currentConvoTag.ToHex();
+      obj["remoteIntro"]           = remoteIntro.ExtractStatus();
+      obj["sessionCreatedAt"]      = createdAt;
+      obj["lastGoodSend"]          = lastGoodSend;
+      obj["seqno"]                 = sequenceNo;
+      obj["markedBad"]             = markedBad;
+      obj["lastShift"]             = lastShift;
+      obj["remoteIdentity"]        = remoteIdent.Addr().ToString();
+      obj["currentRemoteIntroset"] = currentIntroSet.ExtractStatus();
+      obj["nextIntro"]             = m_NextIntro.ExtractStatus();
+
       std::transform(m_BadIntros.begin(), m_BadIntros.end(),
-                     std::back_inserter(badIntrosObj),
+                     std::back_inserter(obj["badIntros"]),
                      [](const auto& item) -> util::StatusObject {
-                       util::StatusObject o{
+                       return util::StatusObject{
                            {"count", item.second},
                            {"intro", item.first.ExtractStatus()}};
-                       return o;
                      });
-      obj.Put("badIntros", badIntrosObj);
       return obj;
     }
 
@@ -245,11 +273,13 @@ namespace llarp
       // we are probably dead af
       if(m_LookupFails > 16 || m_BuildFails > 10)
         return true;
+
       // check for expiration
       if(remoteIntro.ExpiresSoon(now))
       {
         // shift intro if it expires "soon"
-        ShiftIntroduction();
+        if(ShiftIntroduction())
+          SwapIntros();  // swap intros if we shifted
       }
       // lookup router in intro if set and unknown
       m_Endpoint->EnsureRouterIsKnown(remoteIntro.router);
@@ -257,10 +287,14 @@ namespace llarp
       auto itr = m_BadIntros.begin();
       while(itr != m_BadIntros.end())
       {
-        if(now - itr->second > path::default_lifetime)
+        if(now > itr->second && now - itr->second > path::default_lifetime)
           itr = m_BadIntros.erase(itr);
         else
           ++itr;
+      }
+      if(currentIntroSet.HasExpiredIntros(now))
+      {
+        UpdateIntroSet(true);
       }
       // send control message if we look too quiet
       if(lastGoodSend)
@@ -278,9 +312,6 @@ namespace llarp
             tmp.Randomize();
             llarp_buffer_t buf(tmp.data(), tmp.size());
             AsyncEncryptAndSendTo(buf, eProtocolControl);
-            if(currentConvoTag.IsZero())
-              return false;
-            return !m_DataHandler->HasConvoTag(currentConvoTag);
           }
         }
       }
@@ -298,9 +329,10 @@ namespace llarp
     {
       if(m_NextIntro.router.IsZero() || prev.count(m_NextIntro.router))
       {
-        if(!ShiftIntroduction(false))
-          return false;
+        ShiftIntroduction(false);
       }
+      if(m_NextIntro.router.IsZero())
+        return false;
       std::set< RouterID > exclude = prev;
       exclude.insert(m_NextIntro.router);
       for(const auto& snode : m_Endpoint->SnodeBlacklist())
@@ -321,10 +353,7 @@ namespace llarp
     {
       if(markedBad)
         return false;
-      const bool should =
-          (!(path::Builder::BuildCooldownHit(now)
-             || path::Builder::NumInStatus(path::ePathBuilding) >= numPaths))
-          && path::Builder::ShouldBuildMore(now);
+      const bool should = path::Builder::BuildCooldownHit(now);
 
       if(!ReadyToSend())
       {
@@ -343,8 +372,14 @@ namespace llarp
     bool
     OutboundContext::MarkCurrentIntroBad(llarp_time_t now)
     {
+      return MarkIntroBad(remoteIntro, now);
+    }
+
+    bool
+    OutboundContext::MarkIntroBad(const Introduction& intro, llarp_time_t now)
+    {
       // insert bad intro
-      m_BadIntros[remoteIntro] = now;
+      m_BadIntros[intro] = now;
       // try shifting intro without rebuild
       if(ShiftIntroduction(false))
       {

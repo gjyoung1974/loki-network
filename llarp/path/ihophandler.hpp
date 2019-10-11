@@ -3,6 +3,7 @@
 
 #include <crypto/types.hpp>
 #include <util/types.hpp>
+#include <crypto/encrypted_frame.hpp>
 
 #include <memory>
 
@@ -21,9 +22,7 @@ namespace llarp
   {
     struct IHopHandler
     {
-      virtual ~IHopHandler()
-      {
-      }
+      virtual ~IHopHandler() = default;
 
       virtual bool
       Expired(llarp_time_t now) const = 0;
@@ -48,6 +47,10 @@ namespace llarp
       /// return timestamp last remote activity happened at
       virtual llarp_time_t
       LastRemoteActivityAt() const = 0;
+
+      virtual bool
+      HandleLRSM(uint64_t status, std::array< EncryptedFrame, 8 >& frames,
+                 AbstractRouter* r) = 0;
 
       uint64_t
       NextSeqNo()

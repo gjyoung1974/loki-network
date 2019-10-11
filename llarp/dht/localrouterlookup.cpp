@@ -6,16 +6,16 @@
 #include <path/path_context.hpp>
 #include <router/abstractrouter.hpp>
 #include <routing/dht_message.hpp>
-#include <util/logger.hpp>
+#include <util/logging/logger.hpp>
 
 namespace llarp
 {
   namespace dht
   {
     LocalRouterLookup::LocalRouterLookup(const PathID_t &path, uint64_t txid,
-                                         const RouterID &target,
+                                         const RouterID &_target,
                                          AbstractContext *ctx)
-        : RecursiveRouterLookup(TXOwner{ctx->OurKey(), txid}, target, ctx,
+        : RecursiveRouterLookup(TXOwner{ctx->OurKey(), txid}, _target, ctx,
                                 nullptr)
         , localPath(path)
     {

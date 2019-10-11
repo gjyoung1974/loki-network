@@ -4,7 +4,7 @@
 #include <link/i_link_manager.hpp>
 
 #include <util/compare_ptr.hpp>
-#include <util/threading.hpp>
+#include <util/thread/threading.hpp>
 #include <link/server.hpp>
 
 #include <unordered_map>
@@ -18,7 +18,7 @@ namespace llarp
   struct LinkManager final : public ILinkManager
   {
    public:
-    ~LinkManager() = default;
+    ~LinkManager() override = default;
 
     LinkLayer_ptr
     GetCompatibleLink(const RouterContact &rc) const override;
@@ -27,7 +27,8 @@ namespace llarp
     GetSessionMaker() const override;
 
     bool
-    SendTo(const RouterID &remote, const llarp_buffer_t &buf) override;
+    SendTo(const RouterID &remote, const llarp_buffer_t &buf,
+           ILinkSession::CompletionHandler completed) override;
 
     bool
     HasSessionTo(const RouterID &remote) const override;
@@ -70,7 +71,7 @@ namespace llarp
     void
     CheckPersistingSessions(llarp_time_t now) override;
 
-    virtual util::StatusObject
+    util::StatusObject
     ExtractStatus() const override;
 
     void

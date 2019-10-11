@@ -15,11 +15,13 @@
 #include <service/hidden_service_address_lookup.hpp>
 #include <service/outbound_context.hpp>
 #include <service/protocol.hpp>
-#include <util/logic.hpp>
+#include <util/thread/logic.hpp>
 #include <util/str.hpp>
 #include <util/buffer.hpp>
-#include <util/memfn.hpp>
+#include <util/meta/memfn.hpp>
 #include <hook/shell.hpp>
+
+#include <utility>
 
 namespace llarp
 {
@@ -138,18 +140,17 @@ namespace llarp
         addr  = itr->second.remote.Addr();
         return true;
       }
-      else
+
+      for(const auto& item : m_state->m_SNodeSessions)
       {
-        for(const auto& item : m_state->m_SNodeSessions)
+        if(item.second.second == tag)
         {
-          if(item.second.second == tag)
-          {
-            snode = true;
-            addr  = item.first;
-            return true;
-          }
+          snode = true;
+          addr  = item.first;
+          return true;
         }
       }
+
       return false;
     }
 
@@ -162,8 +163,8 @@ namespace llarp
     util::StatusObject
     Endpoint::ExtractStatus() const
     {
-      auto obj = path::Builder::ExtractStatus();
-      obj.Put("identity", m_Identity.pub.Addr().ToString());
+      auto obj        = path::Builder::ExtractStatus();
+      obj["identity"] = m_Identity.pub.Addr().ToString();
       return m_state->ExtractStatus(obj);
     }
 
@@ -191,8 +192,8 @@ namespace llarp
         {
           if(!EnsurePathToService(
                  addr,
-                 [](ABSL_ATTRIBUTE_UNUSED Address addr,
-                    ABSL_ATTRIBUTE_UNUSED OutboundContext* ctx) {},
+                 [](ABSL_ATTRIBUTE_UNUSED Address _addr,
+                    ABSL_ATTRIBUTE_UNUSED OutboundContext* _ctx) {},
                  10000))
           {
             LogWarn("failed to ensure path to ", addr);
@@ -433,6 +434,16 @@ namespace llarp
       itr->second.lastUsed  = Now();
     }
 
+    void
+    Endpoint::MarkConvoTagActive(const ConvoTag& tag)
+    {
+      auto itr = Sessions().find(tag);
+      if(itr != Sessions().end())
+      {
+        itr->second.lastUsed = Now();
+      }
+    }
+
     bool
     Endpoint::LoadKeyFile()
     {
@@ -497,25 +508,24 @@ namespace llarp
     {
       IntroSet m_IntroSet;
       Endpoint* m_Endpoint;
-      PublishIntroSetJob(Endpoint* parent, uint64_t id,
-                         const IntroSet& introset)
+      PublishIntroSetJob(Endpoint* parent, uint64_t id, IntroSet introset)
           : IServiceLookup(parent, id, "PublishIntroSet")
-          , m_IntroSet(introset)
+          , m_IntroSet(std::move(introset))
           , m_Endpoint(parent)
       {
       }
 
       std::shared_ptr< routing::IMessage >
-      BuildRequestMessage()
+      BuildRequestMessage() override
       {
         auto msg = std::make_shared< routing::DHTMessage >();
         msg->M.emplace_back(
-            std::make_unique< dht::PublishIntroMessage >(m_IntroSet, txid, 1));
+            std::make_unique< dht::PublishIntroMessage >(m_IntroSet, txid, 5));
         return msg;
       }
 
       bool
-      HandleResponse(const std::set< IntroSet >& response)
+      HandleResponse(const std::set< IntroSet >& response) override
       {
         if(response.size())
           m_Endpoint->IntroSetPublished();
@@ -698,11 +708,11 @@ namespace llarp
     {
       if(msg->R.size())
       {
-        llarp_async_verify_rc* job = new llarp_async_verify_rc;
-        job->nodedb                = Router()->nodedb();
-        job->cryptoworker          = Router()->threadpool();
-        job->diskworker            = Router()->diskworker();
-        job->logic                 = Router()->logic();
+        auto* job         = new llarp_async_verify_rc;
+        job->nodedb       = Router()->nodedb();
+        job->cryptoworker = Router()->threadpool();
+        job->diskworker   = Router()->diskworker();
+        job->logic        = Router()->logic();
         job->hook = std::bind(&Endpoint::HandleVerifyGotRouter, this, msg,
                               std::placeholders::_1);
         job->rc   = msg->R[0];
@@ -893,20 +903,21 @@ namespace llarp
     Endpoint::OnLookup(const Address& addr, const IntroSet* introset,
                        const RouterID& endpoint)
     {
-      auto now      = Now();
-      auto& fails   = m_state->m_ServiceLookupFails;
-      auto& lookups = m_state->m_PendingServiceLookups;
+      const auto now = Router()->Now();
+      auto& fails    = m_state->m_ServiceLookupFails;
+      auto& lookups  = m_state->m_PendingServiceLookups;
       if(introset == nullptr || introset->IsExpired(now))
       {
         LogError(Name(), " failed to lookup ", addr.ToString(), " from ",
                  endpoint);
         fails[endpoint] = fails[endpoint] + 1;
-        // inform one
-        auto itr = lookups.find(addr);
-        if(itr != lookups.end())
+        // inform all
+        auto range = lookups.equal_range(addr);
+        auto itr   = range.first;
+        if(itr != range.second)
         {
           itr->second(addr, nullptr);
-          lookups.erase(itr);
+          itr = lookups.erase(itr);
         }
         return false;
       }
@@ -1047,7 +1058,10 @@ namespace llarp
       util::Lock lock(&m_state->m_SendQueueMutex);
       // send outbound traffic
       for(const auto& item : m_state->m_SendQueue)
+      {
         item.second->SendRoutingMessage(*item.first, router);
+        MarkConvoTagActive(item.first->T.T);
+      }
       m_state->m_SendQueue.clear();
     }
 
@@ -1169,12 +1183,12 @@ namespace llarp
             if(c)
             {
               c->UpdateIntroSet(true);
-              for(auto& pending : traffic[r])
+              for(auto& pending : m_state->m_PendingTraffic[r])
               {
                 c->AsyncEncryptAndSendTo(pending.Buffer(), pending.protocol);
               }
             }
-            traffic.erase(r);
+            m_state->m_PendingTraffic.erase(r);
           },
           5000, true);
     }
@@ -1205,11 +1219,12 @@ namespace llarp
       // time from now that the newest intro expires at
       if(intro.ExpiresSoon(now))
         return should;
-      const auto dlt = intro.expiresAt - now;
+      const auto dlt = now - (intro.expiresAt - path::default_lifetime);
       return should
           || (  // try spacing tunnel builds out evenly in time
-                 (dlt <= (path::default_lifetime / 4))
-                 && (NumInStatus(path::ePathBuilding) < numPaths));
+                 (dlt >= (path::default_lifetime / 4))
+                 && (NumInStatus(path::ePathBuilding) < numPaths)
+                 && !path::Builder::BuildCooldownHit(now));
     }
 
     std::shared_ptr< Logic >

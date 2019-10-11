@@ -3,17 +3,18 @@
 #include <dht/context.hpp>
 #include <dht/messages/findrouter.hpp>
 #include <dht/messages/gotrouter.hpp>
+#include <utility>
 
 namespace llarp
 {
   namespace dht
   {
-    RecursiveRouterLookup::RecursiveRouterLookup(const TXOwner &whoasked,
-                                                 const RouterID &target,
+    RecursiveRouterLookup::RecursiveRouterLookup(const TXOwner &_whoasked,
+                                                 const RouterID &_target,
                                                  AbstractContext *ctx,
                                                  RouterLookupHandler result)
-        : TX< RouterID, RouterContact >(whoasked, target, ctx)
-        , resultHandler(result)
+        : TX< RouterID, RouterContact >(_whoasked, _target, ctx)
+        , resultHandler(std::move(result))
 
     {
       peersAsked.insert(ctx->OurKey());
@@ -75,11 +76,10 @@ namespace llarp
         parent->DHTSendTo(
             whoasked.node.as_array(),
             new GotRouterMessage({}, whoasked.txid, valuesFound, false), false);
-
-        // store this in our nodedb for caching
-        if(valuesFound.size() > 0)
-          parent->StoreRC(valuesFound[0]);
       }
+      // store this in our nodedb for caching
+      if(valuesFound.size() > 0)
+        parent->StoreRC(valuesFound[0]);
     }
   }  // namespace dht
 }  // namespace llarp

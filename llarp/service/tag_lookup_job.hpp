@@ -22,15 +22,13 @@ namespace llarp
       llarp_time_t lastModified     = 0;
       std::set< IntroSet > result;
       Tag tag;
-      Endpoint* parent;
+      Endpoint* m_parent;
 
-      CachedTagResult(const Tag& t, Endpoint* p) : tag(t), parent(p)
+      CachedTagResult(const Tag& t, Endpoint* p) : tag(t), m_parent(p)
       {
       }
 
-      ~CachedTagResult()
-      {
-      }
+      ~CachedTagResult() = default;
 
       void
       Expire(llarp_time_t now);
@@ -54,9 +52,7 @@ namespace llarp
     {
       TagLookupJob(Endpoint* parent, CachedTagResult* result);
 
-      ~TagLookupJob()
-      {
-      }
+      ~TagLookupJob() override = default;
 
       std::shared_ptr< routing::IMessage >
       BuildRequestMessage() override

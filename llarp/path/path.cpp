@@ -3,6 +3,7 @@
 #include <exit/exit_messages.hpp>
 #include <messages/discard.hpp>
 #include <messages/relay_commit.hpp>
+#include <messages/relay_status.hpp>
 #include <path/pathbuilder.hpp>
 #include <path/transit_hop.hpp>
 #include <profiling.hpp>
@@ -12,6 +13,7 @@
 #include <routing/transfer_traffic_message.hpp>
 #include <util/buffer.hpp>
 #include <util/endian.hpp>
+#include <util/thread/logic.hpp>
 
 #include <deque>
 
@@ -100,9 +102,119 @@ namespace llarp
       return ss.str();
     }
 
+    bool
+    Path::HandleLRSM(uint64_t status, std::array< EncryptedFrame, 8 >& frames,
+                     AbstractRouter* r)
+    {
+      uint64_t currentStatus = status;
+
+      size_t index = 0;
+      while(index < hops.size())
+      {
+        if(!frames[index].DoDecrypt(hops[index].shared))
+        {
+          currentStatus = LR_StatusRecord::FAIL_DECRYPT_ERROR;
+          break;
+        }
+        llarp::LogDebug("decrypted LRSM frame from ", hops[index].rc.pubkey);
+
+        llarp_buffer_t* buf = frames[index].Buffer();
+        buf->cur            = buf->base + EncryptedFrameOverheadSize;
+
+        LR_StatusRecord record;
+        // successful decrypt
+        if(!record.BDecode(buf))
+        {
+          llarp::LogWarn("malformed frame inside LRCM from ",
+                         hops[index].rc.pubkey);
+          currentStatus = LR_StatusRecord::FAIL_MALFORMED_RECORD;
+          break;
+        }
+        llarp::LogDebug("Decoded LR Status Record from ",
+                        hops[index].rc.pubkey);
+
+        currentStatus = record.status;
+
+        if((currentStatus & LR_StatusRecord::SUCCESS) == 0)
+        {
+          break;
+        }
+
+        ++index;
+      }
+
+      if(currentStatus & LR_StatusRecord::SUCCESS)
+      {
+        llarp::LogDebug("LR_Status message processed, path build successful");
+        auto self = shared_from_this();
+        r->logic()->queue_func([=]() { self->HandlePathConfirmMessage(r); });
+      }
+      else
+      {
+        r->routerProfiling().MarkPathFail(this);
+
+        llarp::LogDebug("LR_Status message processed, path build failed");
+
+        if(currentStatus & LR_StatusRecord::FAIL_TIMEOUT)
+        {
+          llarp::LogDebug("Path build failed due to timeout");
+        }
+        else if(currentStatus & LR_StatusRecord::FAIL_CONGESTION)
+        {
+          llarp::LogDebug("Path build failed due to congestion");
+        }
+        else if(currentStatus & LR_StatusRecord::FAIL_DEST_UNKNOWN)
+        {
+          llarp::LogDebug(
+              "Path build failed due to one or more nodes giving destination "
+              "unknown");
+        }
+        else if(currentStatus & LR_StatusRecord::FAIL_DEST_INVALID)
+        {
+          llarp::LogDebug(
+              "Path build failed due to one or more nodes considered an "
+              "invalid destination");
+        }
+        else if(currentStatus & LR_StatusRecord::FAIL_CANNOT_CONNECT)
+        {
+          llarp::LogDebug(
+              "Path build failed due to a node being unable to connect to the "
+              "next hop");
+        }
+        else if(currentStatus & LR_StatusRecord::FAIL_MALFORMED_RECORD)
+        {
+          llarp::LogDebug(
+              "Path build failed due to a malformed record in the build status "
+              "message");
+        }
+        else if(currentStatus & LR_StatusRecord::FAIL_DECRYPT_ERROR)
+        {
+          llarp::LogDebug(
+              "Path build failed due to a decrypt error in the build status "
+              "message");
+        }
+        else
+        {
+          llarp::LogDebug("Path build failed for an unspecified reason");
+        }
+        auto self = shared_from_this();
+        r->logic()->queue_func(
+            [=]() { self->EnterState(ePathFailed, r->Now()); });
+      }
+
+      // TODO: meaningful return value?
+      return true;
+    }
+
     void
     Path::EnterState(PathStatus st, llarp_time_t now)
     {
+      if(st == ePathFailed)
+      {
+        _status = st;
+        m_PathSet->HandlePathBuildFailed(shared_from_this());
+        return;
+      }
       if(st == ePathExpired && _status == ePathBuilding)
       {
         _status = st;
@@ -160,27 +272,30 @@ namespace llarp
                      [](const auto& hop) -> util::StatusObject {
                        return hop.ExtractStatus();
                      });
-      obj.Put("hops", hopsObj);
+      obj["hops"] = hopsObj;
 
       switch(_status)
       {
         case ePathBuilding:
-          obj.Put("status", "building");
+          obj["status"] = "building";
           break;
         case ePathEstablished:
-          obj.Put("status", "established");
+          obj["status"] = "established";
           break;
         case ePathTimeout:
-          obj.Put("status", "timeout");
+          obj["status"] = "timeout";
           break;
         case ePathExpired:
-          obj.Put("status", "expired");
+          obj["status"] = "expired";
+          break;
+        case ePathFailed:
+          obj["status"] = "failed";
           break;
         case ePathIgnore:
-          obj.Put("status", "ignored");
+          obj["status"] = "ignored";
           break;
         default:
-          obj.Put("status", "unknown");
+          obj["status"] = "unknown";
           break;
       }
       return obj;
@@ -271,6 +386,8 @@ namespace llarp
     bool
     Path::Expired(llarp_time_t now) const
     {
+      if(_status == ePathFailed)
+        return true;
       if(_status == ePathEstablished || _status == ePathTimeout)
         return now >= ExpireTime();
       if(_status == ePathBuilding)
@@ -385,11 +502,9 @@ namespace llarp
     }
 
     bool
-    Path::HandlePathConfirmMessage(
-        ABSL_ATTRIBUTE_UNUSED const routing::PathConfirmMessage& msg,
-        AbstractRouter* r)
+    Path::HandlePathConfirmMessage(AbstractRouter* r)
     {
-      LogDebug("Path built: ", HopsString());
+      LogDebug("Path Build Confirm, path: ", HopsString());
       auto now = r->Now();
       if(_status == ePathBuilding)
       {
@@ -411,6 +526,14 @@ namespace llarp
       LogWarn("got unwarranted path confirm message on tx=", RXID(),
               " rx=", RXID());
       return false;
+    }
+
+    bool
+    Path::HandlePathConfirmMessage(
+        ABSL_ATTRIBUTE_UNUSED const routing::PathConfirmMessage& msg,
+        AbstractRouter* r)
+    {
+      return HandlePathConfirmMessage(r);
     }
 
     bool

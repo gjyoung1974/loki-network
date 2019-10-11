@@ -1,16 +1,20 @@
 #ifndef LLARP_VERSION_HPP
 #define LLARP_VERSION_HPP
 
+#if defined(_WIN32) && defined(RC_INVOKED)
+#define LLARP_VERSION 0, 5, 2, 0
+#else
+
 #ifndef LLARP_VERSION_MAJ
 #define LLARP_VERSION_MAJ "0"
 #endif
 
 #ifndef LLARP_VERSION_MIN
-#define LLARP_VERSION_MIN "4"
+#define LLARP_VERSION_MIN "5"
 #endif
 
 #ifndef LLARP_VERSION_PATCH
-#define LLARP_VERSION_PATCH "3"
+#define LLARP_VERSION_PATCH "2"
 #endif
 
 #ifndef LLARP_VERSION_NUM
@@ -33,5 +37,5 @@ struct Version
 {
   static const char LLARP_NET_ID[];
 };
-
+#endif
 #endif

@@ -6,6 +6,7 @@
 #include <util/status.hpp>
 
 #include <unordered_map>
+#include <unordered_set>
 
 namespace llarp
 {
@@ -21,7 +22,7 @@ namespace llarp
           public std::enable_shared_from_this< OutboundContext >
     {
       OutboundContext(const IntroSet& introSet, Endpoint* parent);
-      ~OutboundContext();
+      ~OutboundContext() override;
 
       util::StatusObject
       ExtractStatus() const;
@@ -52,9 +53,16 @@ namespace llarp
       bool
       ShiftIntroduction(bool rebuild = true) override;
 
+      /// shift the intro off the current router it is using
+      void
+      ShiftIntroRouter(const RouterID remote);
+
       /// mark the current remote intro as bad
       bool
       MarkCurrentIntroBad(llarp_time_t now) override;
+
+      bool
+      MarkIntroBad(const Introduction& marked, llarp_time_t now);
 
       /// return true if we are ready to send
       bool
@@ -84,6 +92,9 @@ namespace llarp
 
       void
       HandlePathBuilt(path::Path_ptr path) override;
+
+      void
+      HandlePathBuildTimeout(path::Path_ptr path) override;
 
       bool
       SelectHop(llarp_nodedb* db, const std::set< RouterID >& prev,
