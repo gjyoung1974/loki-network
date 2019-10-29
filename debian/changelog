@@ -1,3 +1,9 @@
+lokinet (0.5.2-3~ubuntu1604) xenial; urgency=medium
+
+  * Fix broken RequireFileExists systemd directive
+
+ -- Jason Rhinelander <jason@imaginary.ca>  Tue, 29 Oct 2019 15:13:24 -0300
+
 lokinet (0.5.2-2~ubuntu1604) xenial; urgency=medium
 
   * Refresh patches for xenial
