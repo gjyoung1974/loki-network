@@ -1,3 +1,12 @@
+lokinet (0.5.2-2~ubuntu1604) xenial; urgency=medium
+
+  * Refresh patches for xenial
+  * Update net/if / linux/if hack
+  * Enable parallel build on xenial
+  * Split client and router config/services into separate packages
+
+ -- Jason Rhinelander <jason@imaginary.ca>  Tue, 29 Oct 2019 14:07:15 -0300
+
 lokinet (0.5.2-1~ubuntu1604) xenial; urgency=medium
 
   * 0.5.2 release
